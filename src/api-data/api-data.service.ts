@@ -63,7 +63,6 @@ export class ApiDataService {
 
   @Cron(CronExpression.EVERY_5_SECONDS)
   async deleteOldLaunches() {
-    console.log('Deleting old launches');
     const dataFromSanity = await this.fetchSanityData();
 
     const date24HoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -78,8 +77,7 @@ export class ApiDataService {
             .patch(launch._id)
             .set({ archived: true })
             .commit()
-            .then((updatedDocument) => {
-              console.log('Updated document', updatedDocument);
+            .then(() => {
               this.discordService.sendMessage(createMissionEmbed(launch));
             })
             .catch((err) => {
