@@ -7,7 +7,7 @@ export class ApiDataController {
 
   @Get('/fetch')
   getApiData() {
-    return this.apiDataService.handleCron();
+    return this.apiDataService.handleCronAndCheckStatus();
   }
 
   @Get('/deleteOldLaunches')

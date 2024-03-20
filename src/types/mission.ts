@@ -20,4 +20,6 @@ export interface Mission {
   boosters: Booster[];
   payload: Payload[];
   archived: boolean;
+  environment: 'development' | 'production';
+  dateUpdateMethod: 'auto' | 'manual';
 }
