@@ -16,7 +16,7 @@ import { SanityService } from './sanity/sanity.service';
     NotificationsModule,
     DiscordModule,
     ConfigModule.forRoot({
-      envFilePath: ['.env.development', '.env.production'],
+      envFilePath: `.env.${process.env.NODE_ENV}`,
       isGlobal: true,
     }),
     SanityModule,
