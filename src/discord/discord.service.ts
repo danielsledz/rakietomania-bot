@@ -1,10 +1,19 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 
 @Injectable()
 export class DiscordService {
-  private readonly discordWebhookUrl =
-    'https://discord.com/api/webhooks/1205560405053808651/62MBS8mMTNjxtlLI2QZCZtLN-dSa4RPj_mzSn9xgve0gk3HlDBmaEOpRV40IeK5XZXKI';
+  private readonly discordWebhookUrl: string;
+  private readonly logger = new Logger(DiscordService.name);
+
+  constructor(config: ConfigService) {
+    this.discordWebhookUrl = config.get<string>('DISCORD_WEBHOOK_URL', '');
+    if (!this.discordWebhookUrl) {
+      this.logger.error('DISCORD_WEBHOOK_URL is not configured.');
+      throw new Error('DISCORD_WEBHOOK_URL is not configured.');
+    }
+  }
 
   async sendMessage(message: string | { embeds: any[] }): Promise<void> {
     const payload =
@@ -13,7 +22,7 @@ export class DiscordService {
     try {
       await axios.post(this.discordWebhookUrl, payload);
     } catch (error) {
-      console.error('Error sending message to Discord', error);
+      this.logger.error('Error sending message to Discord', error);
       throw new Error('Error sending message to Discord');
     }
   }

@@ -2,24 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Mission } from 'src/types';
 import { data as API_DATA } from './data/launches';
-import { createClient } from '@sanity/client';
 import { DiscordService } from 'src/discord/discord.service';
 import { Statuses } from './data/statuses';
-
-// It's better to move the Sanity client configuration to a separate module or file.
-const sanityClient = createClient({
-  projectId: 'vjzwc7w5',
-  dataset: 'development',
-  token: 'your_token_here',
-  useCdn: true,
-});
+import { SanityService } from 'src/sanity/sanity.service';
 
 @Injectable()
 export class ApiDataService {
-  constructor(private readonly discordService: DiscordService) {}
+  constructor(
+    private readonly discordService: DiscordService,
+    private sanityService: SanityService,
+  ) {}
 
   private async fetchSanityData(): Promise<Mission[]> {
-    const response = await sanityClient.fetch('*[_type == "mission"]');
+    const response = await this.sanityService.fetch('*[_type == "mission"]');
     console.log('Fetched data from Sanity', response);
     return response;
   }
@@ -37,7 +32,8 @@ export class ApiDataService {
     );
 
     outdatedLaunches.forEach((launch) => {
-      sanityClient
+      this.sanityService
+        .sanityClient()
         .patch(launch._id)
         .set({ archived: true })
         .commit()
@@ -53,23 +49,24 @@ export class ApiDataService {
 
     dataFromSanity.forEach((launch: Mission) => {
       const matchingLaunchFromAPI = API_DATA.results.find(
-        (launchFromAPI) => launchFromAPI.mission.name === launch.name,
+        (launchFromAPI) => launchFromAPI.mission.name === launch.nameApi,
       );
 
       if (!matchingLaunchFromAPI) {
-        console.log(launch.name, 'does not exist in the database');
+        console.log(launch.nameApi, 'does not exist in the database');
         return;
       }
 
-      console.log(launch.name, 'already exists in the database');
+      console.log(launch.nameApi, 'already exists in the database');
 
       if (
         launch.date !== matchingLaunchFromAPI.net &&
         launch.dateUpdateMethod === 'auto' &&
         !launch.archived
       ) {
-        console.log(launch.name, 'has a different date in the database');
-        sanityClient
+        console.log(launch.nameApi, 'has a different date in the database');
+        this.sanityService
+          .sanityClient()
           .patch(launch._id)
           .set({ date: matchingLaunchFromAPI.net })
           .commit()
@@ -85,7 +82,8 @@ export class ApiDataService {
         return;
 
       console.log(launch.status, externalAPIStatus.myAPIStatus);
-      sanityClient
+      this.sanityService
+        .sanityClient()
         .patch(launch._id)
         .set({ status: externalAPIStatus.myAPIStatus })
         .commit()
