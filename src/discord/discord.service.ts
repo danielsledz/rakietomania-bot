@@ -15,9 +15,34 @@ export class DiscordService {
     }
   }
 
-  async sendMessage(message: string | { embeds: any[] }): Promise<void> {
-    const payload =
-      typeof message === 'string' ? { content: message } : message;
+  async sendMessage(message: string, id: string): Promise<void> {
+    const payload = {
+      embeds: [
+        {
+          title: message,
+          description: 'ID: ' + id,
+          color: 0x00ff00,
+        },
+      ],
+    };
+
+    try {
+      await axios.post(this.discordWebhookUrl, payload);
+    } catch (error) {
+      this.logger.error('Error sending message to Discord', error);
+      throw new Error('Error sending message to Discord');
+    }
+  }
+
+  async sendErrorMessage(message: string): Promise<void> {
+    const payload = {
+      embeds: [
+        {
+          title: message,
+          color: 0xff0000,
+        },
+      ],
+    };
 
     try {
       await axios.post(this.discordWebhookUrl, payload);

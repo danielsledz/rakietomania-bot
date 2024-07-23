@@ -13,11 +13,11 @@ export class AppController {
     return { success: true };
   }
 
-  @Post('send-message')
-  async sendMessage(
-    @Body('message') message: string,
-  ): Promise<{ success: boolean }> {
-    await this.discordService.sendMessage(message);
-    return { success: true };
-  }
+  // @Post('send-message')
+  // async sendMessage(
+  //   @Body() message: { message: string; id: string },
+  // ): Promise<{ success: boolean }> {
+  //   // await this.discordService.sendMessage(message, id);
+  //   return { success: true };
+  // }
 }

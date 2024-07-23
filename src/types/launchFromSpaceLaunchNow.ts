@@ -5,7 +5,7 @@ export interface LaunchCollection {
   results: Launch[];
 }
 
-interface Launch {
+export interface Launch {
   id: string;
   url: string;
   slug: string;
@@ -69,7 +69,7 @@ interface RocketConfiguration {
 }
 
 interface Mission {
-  id: number;
+  id: string;
   name: string;
   description: string;
   launch_designator: string | null;

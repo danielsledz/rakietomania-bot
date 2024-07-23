@@ -5,7 +5,7 @@ import { Rocket } from './rocket';
 
 export interface Mission {
   name: string;
-  nameApi: string;
+  apiMissionID: string;
   date: string;
   status: string;
   description?: string;

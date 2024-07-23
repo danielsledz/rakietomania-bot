@@ -10,19 +10,22 @@ export class NotificationsService {
   constructor(private readonly configService: ConfigService) {
     this.client = new Client(
       this.configService.get<string>('ONESIGNAL_APP_ID'),
-      this.configService.get<string>('ONESIGNAL_API'),
+      this.configService.get<string>('ONESIGNAL_REST_API_KEY'),
     );
   }
 
-  async sendNotification(data: any) {
+  async sendLaunchNotification(data: {
+    message: string;
+    body: string;
+    tag: 'TEN_MINUTES' | 'ONE_HOUR' | 'TWENTY_FOUR_HOURS';
+  }) {
+    console.log('Sending notification:', data);
     const notification: CreateNotificationBody = {
       headings: { en: data.message },
       contents: { en: data.body },
-      big_picture:
-        'https://maka.pl/334-large_default/durszlak-metalowy-24cm.jpg',
-      filters: [
-        { field: 'tag', key: 'TEN_MINUTES', relation: '=', value: 'true' },
-      ],
+      // big_picture:
+      //   'https://maka.pl/334-large_default/durszlak-metalowy-24cm.jpg',
+      filters: [{ field: 'tag', key: data.tag, relation: '=', value: 'true' }],
     };
 
     try {

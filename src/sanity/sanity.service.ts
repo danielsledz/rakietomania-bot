@@ -4,22 +4,33 @@ import { createClient, SanityClient } from '@sanity/client';
 
 @Injectable()
 export class SanityService {
-  private client: SanityClient;
+  private readClient: SanityClient;
+  private writeClient: SanityClient;
 
   constructor(private configService: ConfigService) {
-    this.client = createClient({
-      projectId: this.configService.get<string>('SANITY_PROJECT_ID'),
-      dataset: this.configService.get<string>('SANITY_DATASET'),
-      token: this.configService.get<string>('SANITY_TOKEN'),
-      useCdn: true,
+    const projectId = this.configService.get<string>('SANITY_PROJECT_ID');
+    const dataset = this.configService.get<string>('SANITY_DATASET');
+    const token = this.configService.get<string>('SANITY_TOKEN');
+
+    this.readClient = createClient({
+      projectId,
+      dataset,
+      useCdn: true, // Szybkie odczyty, potencjalnie przestarzałe dane
+    });
+
+    this.writeClient = createClient({
+      projectId,
+      dataset,
+      token,
+      useCdn: false, // Aktualne dane, ale wolniejsze odczyty
     });
   }
 
   async fetch(query: string): Promise<any> {
-    return await this.client.fetch(query);
+    return this.readClient.fetch(query);
   }
 
-  sanityClient(): SanityClient {
-    return this.client;
+  sanityClient(useCdn: boolean = false): SanityClient {
+    return useCdn ? this.readClient : this.writeClient;
   }
 }
