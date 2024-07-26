@@ -20,7 +20,7 @@ export class ApiDataService {
     changeDateLaunches: new Set<string>(),
     changeWindowLaunches: new Set<string>(),
     changeProbabilityLaunches: new Set<string>(),
-    sentNotifications: new Set<string>(), // Dodana struktura do śledzenia wysłanych powiadomień
+    sentNotifications: new Set<string>(),
   };
 
   constructor(
@@ -82,6 +82,7 @@ export class ApiDataService {
     }
   }
 
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async deleteOldLaunches() {
     const dataFromSanity = await this.fetchSanityData();
     const date24HoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -106,9 +107,10 @@ export class ApiDataService {
     return dataFromSanity;
   }
 
+  @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCronAndCheckStatus() {
     const dataFromSanity = await this.fetchSanityData();
-    const dataFromLaunchAPI = await this.fetchLaunchApiData();
+    const dataFromLaunchAPI = await this.getLaunchData();
 
     for (const launch of dataFromSanity.filter((launch) => !launch.archived)) {
       const matchingLaunchFromAPI = dataFromLaunchAPI.results.find(
@@ -116,7 +118,7 @@ export class ApiDataService {
       );
 
       if (!matchingLaunchFromAPI) {
-        console.log(launch.name, 'does not exist in the database');
+        // console.log(launch.name, 'does not exist in the database');
         continue;
       }
 
@@ -131,6 +133,7 @@ export class ApiDataService {
     const { net, probability, window_start, window_end, status } =
       matchingLaunchFromAPI;
     const configName = matchingLaunchFromAPI.rocket.configuration.name;
+
     const updateAndNotify = async (
       cacheKey: string,
       message: string,
@@ -143,6 +146,7 @@ export class ApiDataService {
       }
     };
 
+    // Update launch date if it has changed and method is 'auto'
     if (
       launch.date !== net &&
       launch.dateUpdateMethod === 'auto' &&
@@ -155,6 +159,7 @@ export class ApiDataService {
       );
     }
 
+    // Update probability if it has changed
     if (probability !== null && launch.probability !== probability) {
       await updateAndNotify(
         'changeProbabilityLaunches',
@@ -163,9 +168,10 @@ export class ApiDataService {
       );
     }
 
+    // Update window start and end if they have changed
     if (
-      launch.windowStart !== window_end ||
-      launch.windowEnd !== window_start
+      launch.windowStart !== window_start ||
+      launch.windowEnd !== window_end
     ) {
       await updateAndNotify(
         'changeWindowLaunches',
@@ -177,6 +183,7 @@ export class ApiDataService {
       );
     }
 
+    // Update status if it has changed
     const externalAPIStatus = Statuses.find(
       (statusItem) => statusItem.externalAPIStatus === status.abbrev,
     );
@@ -187,28 +194,40 @@ export class ApiDataService {
     }
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
-  async fetchLaunchData() {
-    this.sanityDataCache = await this.fetchSanityData();
-    this.sanityDataLastFetched = new Date();
-    console.log('Fetched new data from API');
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  private async fetchLaunchData() {
+    await this.fetchSanityData();
+    await this.fetchLaunchApiData();
+    console.log('Fetched new data from APIs');
   }
 
+  private async getLaunchData(): Promise<LaunchCollection> {
+    const now = new Date();
+    if (
+      !this.launchApiDataCache ||
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 600000
+    ) {
+      await this.fetchLaunchData();
+    }
+    return this.launchApiDataCache;
+  }
   async checkForUpcomingLaunches() {
     if (
       !this.sanityDataLastFetched ||
       !this.sanityDataCache ||
       this.sanityDataCache.length === 0
     ) {
+      console.log('Sanity data cache is empty or not fetched yet.');
       return;
     }
 
     const currentTime = new Date();
+    console.log(`Current Time: ${currentTime.toISOString()}`);
 
     const launchesStartingSoon = this.sanityDataCache.filter((launch) => {
       const launchTime = new Date(launch.date);
       const timeDifference = launchTime.getTime() - currentTime.getTime();
-      return timeDifference >= 9 * 60000 && timeDifference <= 9 * 60000 + 10000; // 9 minut i do 10 sekund przed startem
+      return timeDifference >= 9.5 * 60000 && timeDifference <= 10 * 60000;
     });
 
     const launchesInOneHour = this.sanityDataCache.filter((launch) => {
@@ -216,7 +235,7 @@ export class ApiDataService {
       const timeDifference = launchTime.getTime() - currentTime.getTime();
       return (
         timeDifference >= 60 * 60000 - 10000 && timeDifference <= 60 * 60000
-      ); // 1 godzina i do 10 sekund przed startem
+      );
     });
 
     const launchesIn24Hours = this.sanityDataCache.filter((launch) => {
@@ -225,12 +244,12 @@ export class ApiDataService {
       return (
         timeDifference >= 24 * 60 * 60 * 1000 - 10000 &&
         timeDifference <= 24 * 60 * 60 * 1000
-      ); // 24 godziny i do 10 sekund przed startem
+      );
     });
 
-    console.log('Checking for potential send notifications');
-
-    //Dostępne tagi: TEN_MINUTES, ONE_HOUR, TWENTY_FOUR_HOURS
+    console.log(`Launches starting soon: ${launchesStartingSoon.length}`);
+    console.log(`Launches in one hour: ${launchesInOneHour.length}`);
+    console.log(`Launches in 24 hours: ${launchesIn24Hours.length}`);
 
     for (const launch of launchesStartingSoon) {
       if (!this.caches.sentNotifications.has(`${launch._id}_10_MINUTES`)) {
@@ -241,7 +260,7 @@ export class ApiDataService {
           body: launch.description,
           tag: 'TEN_MINUTES',
         });
-        this.caches.sentNotifications.add(`${launch._id}_10_MINUTES`); // Dodanie do listy wysłanych powiadomień
+        this.caches.sentNotifications.add(`${launch._id}_10_MINUTES`);
       }
     }
 
@@ -254,7 +273,7 @@ export class ApiDataService {
           body: launch.description,
           tag: 'ONE_HOUR',
         });
-        this.caches.sentNotifications.add(`${launch._id}_ONE_HOUR`); // Dodanie do listy wysłanych powiadomień
+        this.caches.sentNotifications.add(`${launch._id}_ONE_HOUR`);
       }
     }
 
@@ -269,12 +288,12 @@ export class ApiDataService {
           body: launch.description,
           tag: 'TWENTY_FOUR_HOURS',
         });
-        this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`); // Dodanie do listy wysłanych powiadomień
+        this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`);
       }
     }
   }
 
-  @Cron('* * * * * *')
+  @Cron(CronExpression.EVERY_10_SECONDS)
   async periodicCheck() {
     await this.checkForUpcomingLaunches();
   }
