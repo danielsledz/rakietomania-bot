@@ -39,11 +39,15 @@ export class ApiDataService {
       !this.sanityDataCache ||
       now.getTime() - this.sanityDataLastFetched.getTime() > 180000
     ) {
-      this.sanityDataCache = await this.sanityService.fetch(
-        '*[_type == "mission"]',
-      );
-      this.sanityDataLastFetched = now;
-      console.log('Fetched new data from Sanity');
+      try {
+        this.sanityDataCache = await this.sanityService.fetch(
+          '*[_type == "mission"]',
+        );
+        this.sanityDataLastFetched = now;
+        console.log('Fetched new data from Sanity');
+      } catch (error) {
+        this.handleError('Error while fetching Sanity data', error);
+      }
     }
     return this.sanityDataCache;
   }
@@ -52,7 +56,7 @@ export class ApiDataService {
     const now = new Date();
     if (
       !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 900000
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 180000
     ) {
       try {
         let allData = [];
@@ -62,6 +66,7 @@ export class ApiDataService {
         let previous: string | null = null;
 
         while (nextUrl) {
+          console.log(nextUrl);
           const response = await axios.get(nextUrl);
           const data = response.data;
 
@@ -78,10 +83,8 @@ export class ApiDataService {
           results: allData,
         };
         this.launchApiDataLastFetched = now;
-        console.log('Fetched new data from Launch API');
       } catch (error) {
-        console.error(error);
-        throw new Error('Error fetching launch data: ' + error.message);
+        this.handleError('Error while fetching launch data from API', error);
       }
     }
     return this.launchApiDataCache;
@@ -98,55 +101,65 @@ export class ApiDataService {
         .set(updateFields)
         .commit();
     } catch (err) {
-      console.error('Operation failed', err.message);
+      this.handleError('Update operation failed', err);
     }
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async deleteOldLaunches() {
-    const dataFromSanity = await this.fetchSanityData();
-    const date24HoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const outdatedLaunches = dataFromSanity.filter(
-      (launch) =>
-        new Date(launch.date) < date24HoursAgo &&
-        !launch.archived &&
-        launch.environment === 'production',
-    );
+    try {
+      const dataFromSanity = await this.fetchSanityData();
+      const date24HoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const outdatedLaunches = dataFromSanity.filter(
+        (launch) =>
+          new Date(launch.date) < date24HoursAgo &&
+          !launch.archived &&
+          launch.environment === 'production',
+      );
 
-    for (const launch of outdatedLaunches) {
-      if (!this.caches.archivedLaunches.has(launch._id)) {
-        this.discordService.sendMessage(
-          'Archived mission: ' + launch.name,
-          launch.apiMissionID,
-        );
-        await this.updateSanityRecord(launch._id, { archived: true });
-        this.caches.archivedLaunches.add(launch._id);
+      for (const launch of outdatedLaunches) {
+        if (!this.caches.archivedLaunches.has(launch._id)) {
+          this.discordService.sendMessage(
+            'Archived mission: ' + launch.name,
+            launch.apiMissionID,
+          );
+          await this.updateSanityRecord(launch._id, { archived: true });
+          this.caches.archivedLaunches.add(launch._id);
+        }
       }
-    }
 
-    return dataFromSanity;
+      return dataFromSanity;
+    } catch (error) {
+      this.handleError('Error while deleting old launches', error);
+    }
   }
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCronAndCheckStatus() {
-    const dataFromSanity = await this.fetchSanityData();
-    const dataFromLaunchAPI = await this.getLaunchData();
+    try {
+      const dataFromSanity = await this.fetchSanityData();
+      const dataFromLaunchAPI = await this.getLaunchData();
 
-    console.log('Checking for changes in mission');
+      console.log('Checking for changes in mission');
 
-    for (const launch of dataFromSanity.filter((launch) => !launch.archived)) {
-      const matchingLaunchFromAPI = dataFromLaunchAPI.results.find(
-        (launchFromAPI) => launchFromAPI.id === launch.apiMissionID,
-      );
+      for (const launch of dataFromSanity.filter(
+        (launch) => !launch.archived,
+      )) {
+        const matchingLaunchFromAPI = dataFromLaunchAPI.results.find(
+          (launchFromAPI) => launchFromAPI.id === launch.apiMissionID,
+        );
 
-      if (!matchingLaunchFromAPI) {
-        continue;
+        if (!matchingLaunchFromAPI) {
+          continue;
+        }
+
+        await this.checkAndUpdateLaunch(launch, matchingLaunchFromAPI);
       }
 
-      await this.checkAndUpdateLaunch(launch, matchingLaunchFromAPI);
+      return dataFromSanity;
+    } catch (error) {
+      this.handleError('Error handling cron and checking status', error);
     }
-
-    return dataFromSanity;
   }
 
   private async checkAndUpdateLaunch(launch: any, matchingLaunchFromAPI: any) {
@@ -217,9 +230,13 @@ export class ApiDataService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   private async fetchLaunchData() {
-    await this.fetchSanityData();
-    await this.fetchLaunchApiData();
-    console.log('Fetched new data from APIs');
+    try {
+      await this.fetchSanityData();
+      await this.fetchLaunchApiData();
+      console.log('Fetched new data from APIs');
+    } catch (error) {
+      this.handleError('Error fetching launch data', error);
+    }
   }
 
   private async getLaunchData(): Promise<LaunchCollection> {
@@ -232,105 +249,132 @@ export class ApiDataService {
     }
     return this.launchApiDataCache;
   }
+
   async checkForUpcomingLaunches() {
-    if (
-      !this.sanityDataLastFetched ||
-      !this.sanityDataCache ||
-      this.sanityDataCache.length === 0
-    ) {
-      console.log('Sanity data cache is empty or not fetched yet.');
-      return;
-    }
-
-    const currentTime = new Date();
-
-    const launchesStartingSoon = this.sanityDataCache.filter((launch) => {
-      const launchTime = new Date(launch.date);
-      const timeDifference = launchTime.getTime() - currentTime.getTime();
-      return timeDifference >= 9.5 * 60000 && timeDifference <= 10 * 60000;
-    });
-
-    const launchesInOneHour = this.sanityDataCache.filter((launch) => {
-      const launchTime = new Date(launch.date);
-      const timeDifference = launchTime.getTime() - currentTime.getTime();
-      return (
-        timeDifference >= 60 * 60000 - 10000 && timeDifference <= 60 * 60000
-      );
-    });
-
-    const launchesIn24Hours = this.sanityDataCache.filter((launch) => {
-      const launchTime = new Date(launch.date);
-      const timeDifference = launchTime.getTime() - currentTime.getTime();
-      return (
-        timeDifference >= 24 * 60 * 60 * 1000 - 10000 &&
-        timeDifference <= 24 * 60 * 60 * 1000
-      );
-    });
-
-    for (const launch of launchesStartingSoon) {
-      if (!this.caches.sentNotifications.has(`${launch._id}_10_MINUTES`)) {
-        const message = `10 minut do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
-        console.log(message);
-        await this.notificationService.sendLaunchNotification({
-          message: message,
-          body: launch.description,
-          tag: 'TEN_MINUTES',
-        });
-        this.discordService.sendMessageAboutNotification(message);
-
-        this.caches.sentNotifications.add(`${launch._id}_10_MINUTES`);
-      }
-    }
-
-    for (const launch of launchesInOneHour) {
-      if (!this.caches.sentNotifications.has(`${launch._id}_ONE_HOUR`)) {
-        const message = `1 godzina do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
-        console.log(message);
-        await this.notificationService.sendLaunchNotification({
-          message: message,
-          body: launch.description,
-          tag: 'ONE_HOUR',
-        });
-        this.discordService.sendMessageAboutNotification(message);
-
-        this.caches.sentNotifications.add(`${launch._id}_ONE_HOUR`);
-      }
-    }
-
-    for (const launch of launchesIn24Hours) {
+    try {
       if (
-        !this.caches.sentNotifications.has(`${launch._id}_TWENTY_FOUR_HOURS`)
+        !this.sanityDataLastFetched ||
+        !this.sanityDataCache ||
+        this.sanityDataCache.length === 0
       ) {
-        const message = `24 godziny do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
-        console.log(message);
-        await this.notificationService.sendLaunchNotification({
-          message: message,
-          body: launch.description,
-          tag: 'TWENTY_FOUR_HOURS',
-        });
-        this.discordService.sendMessageAboutNotification(message);
-
-        this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`);
+        console.log('Sanity data cache is empty or not fetched yet.');
+        return;
       }
+
+      const currentTime = new Date();
+
+      const launchesStartingSoon = this.sanityDataCache.filter((launch) => {
+        const launchTime = new Date(launch.date);
+        const timeDifference = launchTime.getTime() - currentTime.getTime();
+        return timeDifference >= 9.5 * 60000 && timeDifference <= 10 * 60000;
+      });
+
+      const launchesInOneHour = this.sanityDataCache.filter((launch) => {
+        const launchTime = new Date(launch.date);
+        const timeDifference = launchTime.getTime() - currentTime.getTime();
+        return (
+          timeDifference >= 60 * 60000 - 10000 && timeDifference <= 60 * 60000
+        );
+      });
+
+      const launchesIn24Hours = this.sanityDataCache.filter((launch) => {
+        const launchTime = new Date(launch.date);
+        const timeDifference = launchTime.getTime() - currentTime.getTime();
+        return (
+          timeDifference >= 24 * 60 * 60 * 1000 - 10000 &&
+          timeDifference <= 24 * 60 * 60 * 1000
+        );
+      });
+
+      for (const launch of launchesStartingSoon) {
+        if (!this.caches.sentNotifications.has(`${launch._id}_10_MINUTES`)) {
+          const message = `10 minut do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
+          console.log(message);
+          await this.notificationService.sendLaunchNotification({
+            message: message,
+            body: launch.description,
+            tag: 'TEN_MINUTES',
+          });
+          this.discordService.sendMessageAboutNotification(message);
+
+          this.caches.sentNotifications.add(`${launch._id}_10_MINUTES`);
+        }
+      }
+
+      for (const launch of launchesInOneHour) {
+        if (!this.caches.sentNotifications.has(`${launch._id}_ONE_HOUR`)) {
+          const message = `1 godzina do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
+          console.log(message);
+          await this.notificationService.sendLaunchNotification({
+            message: message,
+            body: launch.description,
+            tag: 'ONE_HOUR',
+          });
+          this.discordService.sendMessageAboutNotification(message);
+
+          this.caches.sentNotifications.add(`${launch._id}_ONE_HOUR`);
+        }
+      }
+
+      for (const launch of launchesIn24Hours) {
+        if (
+          !this.caches.sentNotifications.has(`${launch._id}_TWENTY_FOUR_HOURS`)
+        ) {
+          const message = `24 godziny do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
+          console.log(message);
+          await this.notificationService.sendLaunchNotification({
+            message: message,
+            body: launch.description,
+            tag: 'TWENTY_FOUR_HOURS',
+          });
+          this.discordService.sendMessageAboutNotification(message);
+
+          this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`);
+        }
+      }
+    } catch (error) {
+      this.handleError('Error checking for potential notifications ', error);
     }
   }
 
   @Cron(CronExpression.EVERY_10_SECONDS)
   async periodicCheck() {
-    await this.checkForUpcomingLaunches();
+    try {
+      await this.checkForUpcomingLaunches();
+    } catch (error) {
+      this.handleError(
+        'Error during periodic check for upcoming launches',
+        error,
+      );
+    }
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   clearCache() {
-    Object.values(this.caches).forEach((cache) => cache.clear());
+    try {
+      Object.values(this.caches).forEach((cache) => cache.clear());
+    } catch (error) {
+      this.handleError('Error while clearing cache', error);
+    }
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES)
   clearChangeCaches() {
-    [
-      'changeDateLaunches',
-      'changeWindowLaunches',
-      'changeProbabilityLaunches',
-    ].forEach((cacheKey) => this.caches[cacheKey].clear());
+    try {
+      [
+        'changeDateLaunches',
+        'changeWindowLaunches',
+        'changeProbabilityLaunches',
+      ].forEach((cacheKey) => this.caches[cacheKey].clear());
+    } catch (error) {
+      this.handleError('Error while clearing change caches', error);
+    }
+  }
+
+  private async handleError(message: string, error: any) {
+    console.error(message, error);
+    await this.discordService.sendErrorMessage(
+      `BŁĄD! SERWER PRZESTAŁ DZIAŁAĆ! JEZELI DANIEL ŚPI, NALEZY GO OBUDZIĆ, INACZEJ GROZI TO ZŁĄ RENOMĄ APLIKACJI \n\n ${error.message}`,
+    );
   }
 }

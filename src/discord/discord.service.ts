@@ -59,6 +59,7 @@ export class DiscordService {
         {
           title: message,
           color: 0xff0000,
+          description: '<@501791282121670690>',
         },
       ],
     };
