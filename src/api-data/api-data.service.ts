@@ -43,6 +43,7 @@ export class ApiDataService {
         '*[_type == "mission"]',
       );
       this.sanityDataLastFetched = now;
+      console.log('Fetched new data from Sanity');
     }
     return this.sanityDataCache;
   }
@@ -51,14 +52,33 @@ export class ApiDataService {
     const now = new Date();
     if (
       !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 180000
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 900000
     ) {
       try {
-        const response = await axios.get(
-          this.configService.get<string>('LAUNCH_API_URL'),
-        );
-        this.launchApiDataCache = response.data;
+        let allData = [];
+        const url = this.configService.get<string>('LAUNCH_API_URL');
+        let nextUrl: string | null = url;
+        let count = 0;
+        let previous: string | null = null;
+
+        while (nextUrl) {
+          const response = await axios.get(nextUrl);
+          const data = response.data;
+
+          allData = allData.concat(data.results);
+          nextUrl = data.next; // Ustal kolejny URL do pobrania, jeśli istnieje
+          count = data.count; // Aktualizuj liczbę wszystkich wyników
+          previous = data.previous; // Aktualizuj poprzedni URL
+        }
+
+        this.launchApiDataCache = {
+          count,
+          next: null,
+          previous,
+          results: allData,
+        };
         this.launchApiDataLastFetched = now;
+        console.log('Fetched new data from Launch API');
       } catch (error) {
         console.error(error);
         throw new Error('Error fetching launch data: ' + error.message);
@@ -112,6 +132,8 @@ export class ApiDataService {
     const dataFromSanity = await this.fetchSanityData();
     const dataFromLaunchAPI = await this.getLaunchData();
 
+    console.log('Checking for changes in mission');
+
     for (const launch of dataFromSanity.filter((launch) => !launch.archived)) {
       const matchingLaunchFromAPI = dataFromLaunchAPI.results.find(
         (launchFromAPI) => launchFromAPI.id === launch.apiMissionID,
@@ -132,8 +154,6 @@ export class ApiDataService {
     const { net, probability, window_start, window_end, status } =
       matchingLaunchFromAPI;
     const configName = matchingLaunchFromAPI.rocket.configuration.name;
-
-    console.log('Checking for changes in mission');
 
     const updateAndNotify = async (
       cacheKey: string,
