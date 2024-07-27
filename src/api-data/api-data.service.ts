@@ -118,7 +118,6 @@ export class ApiDataService {
       );
 
       if (!matchingLaunchFromAPI) {
-        // console.log(launch.name, 'does not exist in the database');
         continue;
       }
 

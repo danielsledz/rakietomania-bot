@@ -15,7 +15,7 @@ export class SanityService {
     this.readClient = createClient({
       projectId,
       dataset,
-      useCdn: true, // Szybkie odczyty, potencjalnie przestarzałe dane
+      useCdn: false, // Szybkie odczyty, potencjalnie przestarzałe dane
     });
 
     this.writeClient = createClient({
