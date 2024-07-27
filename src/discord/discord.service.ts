@@ -15,6 +15,25 @@ export class DiscordService {
     }
   }
 
+  async sendMessageAboutNotification(message: string) {
+    const payload = {
+      embeds: [
+        {
+          title: 'Wysłano powiadomienie',
+          description: message,
+          color: 'blue',
+        },
+      ],
+    };
+
+    try {
+      await axios.post(this.discordWebhookUrl, payload);
+    } catch (error) {
+      this.logger.error('Error sending message to Discord', error);
+      throw new Error('Error sending message to Discord');
+    }
+  }
+
   async sendMessage(message: string, id: string): Promise<void> {
     const payload = {
       embeds: [

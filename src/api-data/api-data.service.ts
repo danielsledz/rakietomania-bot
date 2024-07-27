@@ -133,6 +133,8 @@ export class ApiDataService {
       matchingLaunchFromAPI;
     const configName = matchingLaunchFromAPI.rocket.configuration.name;
 
+    console.log('Checking for changes in mission');
+
     const updateAndNotify = async (
       cacheKey: string,
       message: string,
@@ -221,7 +223,6 @@ export class ApiDataService {
     }
 
     const currentTime = new Date();
-    console.log(`Current Time: ${currentTime.toISOString()}`);
 
     const launchesStartingSoon = this.sanityDataCache.filter((launch) => {
       const launchTime = new Date(launch.date);
@@ -246,10 +247,6 @@ export class ApiDataService {
       );
     });
 
-    console.log(`Launches starting soon: ${launchesStartingSoon.length}`);
-    console.log(`Launches in one hour: ${launchesInOneHour.length}`);
-    console.log(`Launches in 24 hours: ${launchesIn24Hours.length}`);
-
     for (const launch of launchesStartingSoon) {
       if (!this.caches.sentNotifications.has(`${launch._id}_10_MINUTES`)) {
         const message = `10 minut do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
@@ -259,6 +256,8 @@ export class ApiDataService {
           body: launch.description,
           tag: 'TEN_MINUTES',
         });
+        this.discordService.sendMessageAboutNotification(message);
+
         this.caches.sentNotifications.add(`${launch._id}_10_MINUTES`);
       }
     }
@@ -272,6 +271,8 @@ export class ApiDataService {
           body: launch.description,
           tag: 'ONE_HOUR',
         });
+        this.discordService.sendMessageAboutNotification(message);
+
         this.caches.sentNotifications.add(`${launch._id}_ONE_HOUR`);
       }
     }
@@ -287,6 +288,8 @@ export class ApiDataService {
           body: launch.description,
           tag: 'TWENTY_FOUR_HOURS',
         });
+        this.discordService.sendMessageAboutNotification(message);
+
         this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`);
       }
     }
