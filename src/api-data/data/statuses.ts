@@ -29,6 +29,6 @@ export const Statuses = [
   },
   {
     externalAPIStatus: 'TBD',
-    myAPIStatus: 'ToBeConfirmed',
+    myAPIStatus: 'ToBeDetermined',
   },
 ];
