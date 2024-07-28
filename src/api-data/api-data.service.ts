@@ -66,6 +66,7 @@ export class ApiDataService {
         let previous: string | null = null;
 
         while (nextUrl) {
+          console.log(nextUrl);
           const response = await axios.get(nextUrl);
           const data = response.data;
 
