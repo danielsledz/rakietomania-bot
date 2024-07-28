@@ -12,9 +12,9 @@ import { LaunchCollection } from 'src/types/launchFromSpaceLaunchNow';
 @Injectable()
 export class ApiDataService {
   private sanityDataCache: Mission[] | null = null;
-  private sanityDataLastFetched: Date = new Date(0);
+  private sanityDataLastFetched = new Date(0);
   private launchApiDataCache: LaunchCollection | null = null;
-  private launchApiDataLastFetched: Date = new Date(0);
+  private launchApiDataLastFetched = new Date(0);
   private caches = {
     archivedLaunches: new Set<string>(),
     changeDateLaunches: new Set<string>(),
@@ -59,14 +59,13 @@ export class ApiDataService {
       now.getTime() - this.launchApiDataLastFetched.getTime() > 15 * 60 * 1000
     ) {
       try {
-        let allData = [];
+        let allData: any[] = [];
         const url = this.configService.get<string>('LAUNCH_API_URL');
         let nextUrl: string | null = url;
         let count = 0;
         let previous: string | null = null;
 
         while (nextUrl) {
-          console.log(nextUrl);
           const response = await axios.get(nextUrl);
           const data = response.data;
 
@@ -127,8 +126,6 @@ export class ApiDataService {
           this.caches.archivedLaunches.add(launch._id);
         }
       }
-
-      return dataFromSanity;
     } catch (error) {
       this.handleError('Error while deleting old launches', error);
     }
@@ -137,8 +134,10 @@ export class ApiDataService {
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCronAndCheckStatus() {
     try {
-      const dataFromSanity = await this.fetchSanityData();
-      const dataFromLaunchAPI = await this.getLaunchData();
+      const [dataFromSanity, dataFromLaunchAPI] = await Promise.all([
+        this.fetchSanityData(),
+        this.getLaunchData(),
+      ]);
 
       console.log('Checking for changes in mission');
 
@@ -149,14 +148,10 @@ export class ApiDataService {
           (launchFromAPI) => launchFromAPI.id === launch.apiMissionID,
         );
 
-        if (!matchingLaunchFromAPI) {
-          continue;
+        if (matchingLaunchFromAPI) {
+          await this.checkAndUpdateLaunch(launch, matchingLaunchFromAPI);
         }
-
-        await this.checkAndUpdateLaunch(launch, matchingLaunchFromAPI);
       }
-
-      return dataFromSanity;
     } catch (error) {
       this.handleError('Error handling cron and checking status', error);
     }
@@ -231,8 +226,7 @@ export class ApiDataService {
   @Cron(CronExpression.EVERY_5_MINUTES)
   private async fetchSanityAndLaunchData() {
     try {
-      await this.fetchSanityData();
-      await this.fetchLaunchApiData();
+      await Promise.all([this.fetchSanityData(), this.fetchLaunchApiData()]);
       console.log('Fetched new data from APIs');
     } catch (error) {
       this.handleError('Error fetching launch data', error);
@@ -252,16 +246,37 @@ export class ApiDataService {
 
   async checkForUpcomingLaunches() {
     try {
-      if (
-        !this.sanityDataLastFetched ||
-        !this.sanityDataCache ||
-        this.sanityDataCache.length === 0
-      ) {
+      if (!this.sanityDataCache || this.sanityDataCache.length === 0) {
         console.log('Sanity data cache is empty or not fetched yet.');
         return;
       }
 
       const currentTime = new Date();
+
+      const notifyLaunches = async (
+        launches: Mission[],
+        tag: 'TEN_MINUTES' | 'ONE_HOUR' | 'TWENTY_FOUR_HOURS',
+        timeUnit: string,
+      ) => {
+        for (const launch of launches) {
+          if (!this.caches.sentNotifications.has(`${launch._id}_${tag}`)) {
+            const rocketName = await this.sanityService.fetch(
+              `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
+            );
+            const message = `Start rakiety ${rocketName[0].rocket.name}!`;
+            await this.notificationService.sendLaunchNotification({
+              message: message,
+              body: `W ciągu ${timeUnit} rozpocznie się start misji ${launch.name}!`,
+              tag: tag,
+              image: rocketName[0].rocket.imageUrl,
+              launchId: launch._id,
+            });
+            this.discordService.sendMessageAboutNotification(message);
+
+            this.caches.sentNotifications.add(`${launch._id}_${tag}`);
+          }
+        }
+      };
 
       const launchesStartingSoon = this.sanityDataCache.filter((launch) => {
         const launchTime = new Date(launch.date);
@@ -286,72 +301,11 @@ export class ApiDataService {
         );
       });
 
-      for (const launch of launchesStartingSoon) {
-        if (!this.caches.sentNotifications.has(`${launch._id}_10_MINUTES`)) {
-          const rocketName = await this.sanityService.fetch(
-            `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
-          );
-          const message = `Start rakiety ${rocketName[0].rocket.name}!`;
-          await this.notificationService.sendLaunchNotification({
-            message: message,
-            body:
-              'W ciągu 10 minut rozpocznie się start misji ' +
-              launch.name +
-              '!',
-            tag: 'TEN_MINUTES',
-            image: rocketName[0].rocket.imageUrl,
-            launchId: launch._id,
-          });
-          this.discordService.sendMessageAboutNotification(message);
-
-          this.caches.sentNotifications.add(`${launch._id}_10_MINUTES`);
-        }
-      }
-
-      for (const launch of launchesInOneHour) {
-        if (!this.caches.sentNotifications.has(`${launch._id}_ONE_HOUR`)) {
-          const rocketName = await this.sanityService.fetch(
-            `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name}}`,
-          );
-
-          const message = `Start rakiety ${rocketName[0].rocket.name}!`;
-          await this.notificationService.sendLaunchNotification({
-            message: message,
-            body:
-              'W ciągu godziny rozpocznie się start misji ' + launch.name + '!',
-            tag: 'ONE_HOUR',
-            image: '',
-            launchId: launch._id,
-          });
-          this.discordService.sendMessageAboutNotification(message);
-
-          this.caches.sentNotifications.add(`${launch._id}_ONE_HOUR`);
-        }
-      }
-
-      for (const launch of launchesIn24Hours) {
-        if (
-          !this.caches.sentNotifications.has(`${launch._id}_TWENTY_FOUR_HOURS`)
-        ) {
-          const rocketName = await this.sanityService.fetch(
-            `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name}}`,
-          );
-
-          const message = `Start rakiety ${rocketName[0].rocket.name}!`;
-          await this.notificationService.sendLaunchNotification({
-            message: message,
-            body:
-              'W ciągu 24 godzin rozpocznie się start misji ' +
-              launch.name +
-              '!',
-            tag: 'TWENTY_FOUR_HOURS',
-            image: '',
-            launchId: launch._id,
-          });
-
-          this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`);
-        }
-      }
+      await Promise.all([
+        notifyLaunches(launchesStartingSoon, 'TEN_MINUTES', '10 minut'),
+        notifyLaunches(launchesInOneHour, 'ONE_HOUR', 'godziny'),
+        notifyLaunches(launchesIn24Hours, 'TWENTY_FOUR_HOURS', '24 godzin'),
+      ]);
     } catch (error) {
       this.handleError('Error checking for potential notifications', error);
     }
