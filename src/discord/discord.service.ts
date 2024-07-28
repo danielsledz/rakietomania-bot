@@ -21,7 +21,6 @@ export class DiscordService {
         {
           title: 'Wysłano powiadomienie',
           description: message,
-          color: 'blue',
         },
       ],
     };

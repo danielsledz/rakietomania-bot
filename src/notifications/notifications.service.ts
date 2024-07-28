@@ -18,14 +18,25 @@ export class NotificationsService {
     message: string;
     body: string;
     tag: 'TEN_MINUTES' | 'ONE_HOUR' | 'TWENTY_FOUR_HOURS';
+    image: string;
+    launchId: string;
   }) {
     console.log('Sending notification:', data);
     const notification: CreateNotificationBody = {
       headings: { en: data.message },
       contents: { en: data.body },
-      // big_picture:
-      //   'https://maka.pl/334-large_default/durszlak-metalowy-24cm.jpg',
+      big_picture: data.image,
       filters: [{ field: 'tag', key: data.tag, relation: '=', value: 'true' }],
+      // buttons: [
+      //   {
+      //     id: data.launchId,
+      //     text: 'Szczegóły',
+      //   },
+      //   {
+      //     id: 'https://www.youtube.com/live/8VP19Z8cHrw?si=8ryjWowusDMGz8Yh&t=1695',
+      //     text: 'Transmisja',
+      //   },
+      // ],
     };
 
     try {

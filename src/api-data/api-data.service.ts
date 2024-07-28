@@ -5,9 +5,9 @@ import { DiscordService } from 'src/discord/discord.service';
 import { Statuses } from './data/statuses';
 import { SanityService } from 'src/sanity/sanity.service';
 import axios from 'axios';
-import { LaunchCollection } from 'src/types/launchFromSpaceLaunchNow';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { LaunchCollection } from 'src/types/launchFromSpaceLaunchNow';
 
 @Injectable()
 export class ApiDataService {
@@ -37,7 +37,7 @@ export class ApiDataService {
     const now = new Date();
     if (
       !this.sanityDataCache ||
-      now.getTime() - this.sanityDataLastFetched.getTime() > 180000
+      now.getTime() - this.sanityDataLastFetched.getTime() > 5 * 60 * 1000
     ) {
       try {
         this.sanityDataCache = await this.sanityService.fetch(
@@ -56,7 +56,7 @@ export class ApiDataService {
     const now = new Date();
     if (
       !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 180000
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 15 * 60 * 1000
     ) {
       try {
         let allData = [];
@@ -71,9 +71,9 @@ export class ApiDataService {
           const data = response.data;
 
           allData = allData.concat(data.results);
-          nextUrl = data.next; // Ustal kolejny URL do pobrania, jeśli istnieje
-          count = data.count; // Aktualizuj liczbę wszystkich wyników
-          previous = data.previous; // Aktualizuj poprzedni URL
+          nextUrl = data.next;
+          count = data.count;
+          previous = data.previous;
         }
 
         this.launchApiDataCache = {
@@ -194,7 +194,7 @@ export class ApiDataService {
     }
 
     // Update probability if it has changed
-    if (probability !== null && launch.probability !== probability) {
+    if (launch.probability !== probability) {
       await updateAndNotify(
         'changeProbabilityLaunches',
         `Probability changed for mission: ${name} | ${configName}`,
@@ -229,7 +229,7 @@ export class ApiDataService {
   }
 
   @Cron(CronExpression.EVERY_5_MINUTES)
-  private async fetchLaunchData() {
+  private async fetchSanityAndLaunchData() {
     try {
       await this.fetchSanityData();
       await this.fetchLaunchApiData();
@@ -243,9 +243,9 @@ export class ApiDataService {
     const now = new Date();
     if (
       !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 600000
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 15 * 60 * 1000
     ) {
-      await this.fetchLaunchData();
+      await this.fetchLaunchApiData();
     }
     return this.launchApiDataCache;
   }
@@ -288,12 +288,19 @@ export class ApiDataService {
 
       for (const launch of launchesStartingSoon) {
         if (!this.caches.sentNotifications.has(`${launch._id}_10_MINUTES`)) {
-          const message = `10 minut do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
-          console.log(message);
+          const rocketName = await this.sanityService.fetch(
+            `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
+          );
+          const message = `Start rakiety ${rocketName[0].rocket.name}!`;
           await this.notificationService.sendLaunchNotification({
             message: message,
-            body: launch.description,
+            body:
+              'W ciągu 10 minut rozpocznie się start misji ' +
+              launch.name +
+              '!',
             tag: 'TEN_MINUTES',
+            image: rocketName[0].rocket.imageUrl,
+            launchId: launch._id,
           });
           this.discordService.sendMessageAboutNotification(message);
 
@@ -303,12 +310,18 @@ export class ApiDataService {
 
       for (const launch of launchesInOneHour) {
         if (!this.caches.sentNotifications.has(`${launch._id}_ONE_HOUR`)) {
-          const message = `1 godzina do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
-          console.log(message);
+          const rocketName = await this.sanityService.fetch(
+            `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name}}`,
+          );
+
+          const message = `Start rakiety ${rocketName[0].rocket.name}!`;
           await this.notificationService.sendLaunchNotification({
             message: message,
-            body: launch.description,
+            body:
+              'W ciągu godziny rozpocznie się start misji ' + launch.name + '!',
             tag: 'ONE_HOUR',
+            image: '',
+            launchId: launch._id,
           });
           this.discordService.sendMessageAboutNotification(message);
 
@@ -320,20 +333,27 @@ export class ApiDataService {
         if (
           !this.caches.sentNotifications.has(`${launch._id}_TWENTY_FOUR_HOURS`)
         ) {
-          const message = `24 godziny do startu rakiety ${launch.rocket.name} z misją ${launch.name}!`;
-          console.log(message);
+          const rocketName = await this.sanityService.fetch(
+            `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name}}`,
+          );
+
+          const message = `Start rakiety ${rocketName[0].rocket.name}!`;
           await this.notificationService.sendLaunchNotification({
             message: message,
-            body: launch.description,
+            body:
+              'W ciągu 24 godzin rozpocznie się start misji ' +
+              launch.name +
+              '!',
             tag: 'TWENTY_FOUR_HOURS',
+            image: '',
+            launchId: launch._id,
           });
-          this.discordService.sendMessageAboutNotification(message);
 
           this.caches.sentNotifications.add(`${launch._id}_TWENTY_FOUR_HOURS`);
         }
       }
     } catch (error) {
-      this.handleError('Error checking for potential notifications ', error);
+      this.handleError('Error checking for potential notifications', error);
     }
   }
 
