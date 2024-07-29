@@ -68,7 +68,11 @@ export class ApiDataService {
 
         while (nextUrl) {
           console.log(nextUrl);
-          const response = await axios.get(nextUrl);
+
+          const response = await axios.get(nextUrl).finally(() => {
+            console.log('Pobralem reuqest');
+          });
+
           const data = response.data;
 
           allData = allData.concat(data.results);
