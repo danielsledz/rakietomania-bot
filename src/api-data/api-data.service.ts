@@ -56,7 +56,7 @@ export class ApiDataService {
     const now = new Date();
     if (
       !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 15 * 60 * 1000
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 20 * 60 * 1000
     ) {
       console.log('Fetching new data from Space Launch API');
       try {
