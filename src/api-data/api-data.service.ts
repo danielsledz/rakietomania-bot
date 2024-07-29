@@ -52,7 +52,12 @@ export class ApiDataService {
     return this.sanityDataCache;
   }
 
+  private isFetchingLaunchApiData = false;
+
   private async fetchLaunchApiData(): Promise<LaunchCollection> {
+    if (this.isFetchingLaunchApiData) return this.launchApiDataCache;
+
+    this.isFetchingLaunchApiData = true;
     const now = new Date();
     if (
       !this.launchApiDataCache ||
@@ -92,6 +97,7 @@ export class ApiDataService {
         this.handleError('Error while fetching launch data from API', error);
       }
     }
+    this.isFetchingLaunchApiData = false;
     return this.launchApiDataCache;
   }
 
@@ -229,21 +235,11 @@ export class ApiDataService {
     }
   }
 
-  @Cron(CronExpression.EVERY_5_MINUTES)
-  private async fetchSanityAndLaunchData() {
-    try {
-      await Promise.all([this.fetchSanityData(), this.fetchLaunchApiData()]);
-      console.log('Fetched new data from APIs');
-    } catch (error) {
-      this.handleError('Error fetching launch data', error);
-    }
-  }
-
   private async getLaunchData(): Promise<LaunchCollection> {
     const now = new Date();
     if (
       !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 15 * 60 * 1000
+      now.getTime() - this.launchApiDataLastFetched.getTime() > 20 * 60 * 1000
     ) {
       await this.fetchLaunchApiData();
     }
