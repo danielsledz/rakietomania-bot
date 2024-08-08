@@ -94,7 +94,7 @@ export class ApiDataService {
         };
         this.launchApiDataLastFetched = now;
       } catch (error) {
-        this.handleError('Error while fetching launch data from API', error);
+        console.error('Error while fetching launch data from API', error);
       }
     }
     this.isFetchingLaunchApiData = false;
