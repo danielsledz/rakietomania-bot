@@ -280,17 +280,27 @@ export class ApiDataService {
         }
       };
 
+      const isValidStatus = (status: string) => {
+        return status !== 'ToBeConfirmed' && status !== 'ToBeDetermined';
+      };
+
       const launchesStartingSoon = this.sanityDataCache.filter((launch) => {
         const launchTime = new Date(launch.date);
         const timeDifference = launchTime.getTime() - currentTime.getTime();
-        return timeDifference >= 9.5 * 60000 && timeDifference <= 10 * 60000;
+        return (
+          isValidStatus(launch.status) &&
+          timeDifference >= 9.5 * 60000 &&
+          timeDifference <= 10 * 60000
+        );
       });
 
       const launchesInOneHour = this.sanityDataCache.filter((launch) => {
         const launchTime = new Date(launch.date);
         const timeDifference = launchTime.getTime() - currentTime.getTime();
         return (
-          timeDifference >= 60 * 60000 - 10000 && timeDifference <= 60 * 60000
+          isValidStatus(launch.status) &&
+          timeDifference >= 60 * 60000 - 10000 &&
+          timeDifference <= 60 * 60000
         );
       });
 
@@ -298,6 +308,7 @@ export class ApiDataService {
         const launchTime = new Date(launch.date);
         const timeDifference = launchTime.getTime() - currentTime.getTime();
         return (
+          isValidStatus(launch.status) &&
           timeDifference >= 24 * 60 * 60 * 1000 - 10000 &&
           timeDifference <= 24 * 60 * 60 * 1000
         );
