@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { SanityController } from './sanity.controller';
 import { SanityService } from './sanity.service';
+import { ErrorHandlingModule } from 'src/error-handling/error-handling.module';
 
 @Module({
-  controllers: [SanityController],
+  imports: [ErrorHandlingModule],
   providers: [SanityService],
   exports: [SanityService],
 })
