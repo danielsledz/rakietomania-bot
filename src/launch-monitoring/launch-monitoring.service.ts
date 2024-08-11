@@ -61,7 +61,11 @@ export class LaunchMonitoringService {
       };
 
       const isValidStatus = (status: string) => {
-        return status !== 'ToBeConfirmed' && status !== 'ToBeDetermined';
+        return (
+          status !== 'ToBeConfirmed' &&
+          status !== 'ToBeDetermined' &&
+          status !== 'Hold'
+        );
       };
 
       const launchesStartingSoon = this.sanityService.sanityDataCache.filter(

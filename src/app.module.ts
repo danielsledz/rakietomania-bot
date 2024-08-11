@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ApiDataModule } from './api-data/api-data.module';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -31,7 +30,13 @@ import { LaunchMonitoringModule } from './launch-monitoring/launch-monitoring.mo
     ExternalApiModule,
     LaunchMonitoringModule,
   ],
-  controllers: [AppController],
-  providers: [AppService, SanityService, ErrorHandlingService, ExternalApiService, LaunchMonitoringService, CronServiceService],
+  providers: [
+    AppService,
+    SanityService,
+    ErrorHandlingService,
+    ExternalApiService,
+    LaunchMonitoringService,
+    CronServiceService,
+  ],
 })
 export class AppModule {}
