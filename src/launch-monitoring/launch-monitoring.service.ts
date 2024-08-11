@@ -117,7 +117,7 @@ export class LaunchMonitoringService {
     }
   }
 
-  async checkAndUpdateLaunch(launch: any, matchingLaunchFromAPI: any) {
+  async checkAndUpdateLaunch(launch: Mission, matchingLaunchFromAPI: any) {
     const { _id, name, apiMissionID } = launch;
     const { net, probability, window_start, window_end, status } =
       matchingLaunchFromAPI;
@@ -172,13 +172,29 @@ export class LaunchMonitoringService {
       );
     }
 
-    // Update status if it has changed
+    const statusFieldsToUpdate = {
+      Success: 'successfull_launches',
+      PartialFailed: 'partial_failed_launches',
+      Failed: 'failed_launches',
+      PartialSuccess: 'partial_successfull_launches',
+    };
+
     const externalAPIStatus = Statuses.find(
       (statusItem) => statusItem.externalAPIStatus === status.abbrev,
     );
+
     if (externalAPIStatus && launch.status !== externalAPIStatus.myAPIStatus) {
       await this.sanityService.updateSanityRecord(_id, {
         status: externalAPIStatus.myAPIStatus,
+      });
+    }
+
+    const statusField = statusFieldsToUpdate[externalAPIStatus.myAPIStatus];
+    if (statusField) {
+      const newValue = (parseInt(launch[statusField]) || 0) + 1;
+      console.log('Updating status field', statusField, 'to', newValue);
+      await this.sanityService.updateSanityRecord(launch.rocket._id, {
+        [statusField]: newValue.toString(),
       });
     }
   }
