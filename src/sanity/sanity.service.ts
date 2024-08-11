@@ -1,13 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SanityClient } from '@sanity/client';
+import { ErrorHandlingService } from 'src/error-handling/error-handling.service';
+import { Mission } from 'src/types';
 
 @Injectable()
 export class SanityService {
   private readClient: SanityClient;
   private writeClient: SanityClient;
+  public sanityDataLastFetched = new Date(0);
+  public sanityDataCache: Mission[] | null = null;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private errorHandlingService: ErrorHandlingService,
+  ) {
     const projectId = this.configService.get<string>('SANITY_PROJECT_ID');
     const dataset = this.configService.get<string>('SANITY_DATASET');
     const token = this.configService.get<string>('SANITY_TOKEN');
@@ -32,5 +39,33 @@ export class SanityService {
 
   sanityClient(useCdn: boolean = false): SanityClient {
     return useCdn ? this.readClient : this.writeClient;
+  }
+
+  public async fetchMissions(): Promise<Mission[]> {
+    const now = new Date();
+    if (
+      !this.sanityDataCache ||
+      now.getTime() - this.sanityDataLastFetched.getTime() > 5 * 60 * 1000
+    ) {
+      try {
+        this.sanityDataCache = await this.fetch('*[_type == "mission"]');
+        this.sanityDataLastFetched = now;
+        console.log('Fetched new data from Sanity');
+      } catch (error) {
+        this.errorHandlingService.handleError(
+          'Error while fetching Sanity data',
+          error,
+        );
+      }
+    }
+    return this.sanityDataCache;
+  }
+
+  async updateSanityRecord(id: string, updateFields: object): Promise<void> {
+    try {
+      await this.sanityClient(false).patch(id).set(updateFields).commit();
+    } catch (err) {
+      this.errorHandlingService.handleError('Update operation failed', err);
+    }
   }
 }

@@ -27,16 +27,6 @@ export class NotificationsService {
       contents: { en: data.body },
       big_picture: data.image,
       filters: [{ field: 'tag', key: data.tag, relation: '=', value: 'true' }],
-      // buttons: [
-      //   {
-      //     id: data.launchId,
-      //     text: 'Szczegóły',
-      //   },
-      //   {
-      //     id: 'https://www.youtube.com/live/8VP19Z8cHrw?si=8ryjWowusDMGz8Yh&t=1695',
-      //     text: 'Transmisja',
-      //   },
-      // ],
     };
 
     try {

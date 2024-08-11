@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ApiDataModule } from './api-data/api-data.module';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -8,6 +7,13 @@ import { DiscordModule } from './discord/discord.module';
 import { ConfigModule } from '@nestjs/config';
 import { SanityModule } from './sanity/sanity.module';
 import { SanityService } from './sanity/sanity.service';
+import { ErrorHandlingService } from './error-handling/error-handling.service';
+import { ExternalApiService } from './external-api/external-api.service';
+import { LaunchMonitoringService } from './launch-monitoring/launch-monitoring.service';
+import { CronServiceService } from './cron-service/cron-service.service';
+import { ErrorHandlingModule } from './error-handling/error-handling.module';
+import { ExternalApiModule } from './external-api/external-api.module';
+import { LaunchMonitoringModule } from './launch-monitoring/launch-monitoring.module';
 
 @Module({
   imports: [
@@ -20,8 +26,17 @@ import { SanityService } from './sanity/sanity.service';
       isGlobal: true,
     }),
     SanityModule,
+    ErrorHandlingModule,
+    ExternalApiModule,
+    LaunchMonitoringModule,
   ],
-  controllers: [AppController],
-  providers: [AppService, SanityService],
+  providers: [
+    AppService,
+    SanityService,
+    ErrorHandlingService,
+    ExternalApiService,
+    LaunchMonitoringService,
+    CronServiceService,
+  ],
 })
 export class AppModule {}
