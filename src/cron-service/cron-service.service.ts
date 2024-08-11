@@ -52,19 +52,20 @@ export class CronServiceService {
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCronAndCheckStatus() {
     try {
-      const [dataFromSanity, dataFromLaunchAPI] = await Promise.all([
+      const [dataFromSanity] = await Promise.all([
         this.sanityService.fetchMissions(),
-        this.externalApiService.tryToFetchMissions(),
       ]);
 
       console.log('Checking for changes in mission');
+      console.log('dataFromSanity', dataFromSanity.length);
 
       for (const launch of dataFromSanity.filter(
         (launch) => !launch.archived,
       )) {
-        const matchingLaunchFromAPI = dataFromLaunchAPI.results.find(
-          (launchFromAPI) => launchFromAPI.id === launch.apiMissionID,
-        );
+        const matchingLaunchFromAPI =
+          this.externalApiService.launchApiDataCache?.results.find(
+            (launchFromAPI) => launchFromAPI.id === launch.apiMissionID,
+          );
 
         if (matchingLaunchFromAPI) {
           await this.launchMonitoringService.checkAndUpdateLaunch(
@@ -90,6 +91,15 @@ export class CronServiceService {
         'Error during periodic check for upcoming launches',
         error,
       );
+    }
+  }
+
+  @Cron('0 */20 * * * *') // Co 20 minut
+  async fetchExternalData() {
+    try {
+      await this.externalApiService.tryToFetchMissions();
+    } catch (error) {
+      console.error('Error handling cron and checking status', error);
     }
   }
 

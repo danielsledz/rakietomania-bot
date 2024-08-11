@@ -6,22 +6,33 @@ import { LaunchCollection } from 'src/types/launchFromSpaceLaunchNow';
 @Injectable()
 export class ExternalApiService {
   private isFetchingLaunchApiData = false;
-  private launchApiDataCache: LaunchCollection | null = null;
+  public launchApiDataCache: LaunchCollection | null = null;
   private launchApiDataLastFetched = new Date(0);
 
   constructor(private readonly configService: ConfigService) {}
 
-  async fetchMissions(): Promise<LaunchCollection> {
-    if (this.isFetchingLaunchApiData) return this.launchApiDataCache;
+  private fetchLock: Promise<void> | null = null;
 
-    this.isFetchingLaunchApiData = true;
-    const now = new Date();
-    if (
-      !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 20 * 60 * 1000
-    ) {
-      console.log('Fetching new data from Space Launch API');
-      try {
+  async fetchMissions(): Promise<LaunchCollection> {
+    while (this.fetchLock) {
+      await this.fetchLock;
+    }
+
+    let resolveLock: () => void;
+    this.fetchLock = new Promise<void>((resolve) => {
+      resolveLock = resolve;
+    });
+
+    try {
+      if (this.isFetchingLaunchApiData) return this.launchApiDataCache;
+
+      this.isFetchingLaunchApiData = true;
+      const now = new Date();
+      if (
+        !this.launchApiDataCache ||
+        now.getTime() - this.launchApiDataLastFetched.getTime() > 20 * 60 * 1000
+      ) {
+        console.log('Fetching new data from Space Launch API');
         let allData: any[] = [];
         const url = this.configService.get<string>('LAUNCH_API_URL');
         let nextUrl: string | null = url;
@@ -50,11 +61,19 @@ export class ExternalApiService {
           results: allData,
         };
         this.launchApiDataLastFetched = now;
-      } catch (error) {
-        console.error('Error while fetching launch data from API', error);
+        console.log(
+          'this.externalApiService.launchApiDataCache.count',
+          this.launchApiDataCache.count,
+        );
       }
+      this.isFetchingLaunchApiData = false;
+    } catch (error) {
+      console.error('Error while fetching launch data from API', error);
+    } finally {
+      resolveLock!();
+      this.fetchLock = null;
     }
-    this.isFetchingLaunchApiData = false;
+
     return this.launchApiDataCache;
   }
 
