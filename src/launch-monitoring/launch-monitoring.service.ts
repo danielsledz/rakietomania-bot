@@ -199,7 +199,8 @@ export class LaunchMonitoringService {
       const rocket: Rocket = await this.sanityService.fetch(
         `*[_type == "rocket" && _id == "${launch.rocket._ref}"]`,
       );
-      console.log(rocket[statusField]);
+      console.log(rocket);
+      console.log(statusField);
       await updateAndNotify(
         'updatedStatusLaunches',
         `Status updated for mission: ${name} | ${configName}, field: ${statusField}`,
