@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { createClient, SanityClient } from '@sanity/client';
 import { ErrorHandlingService } from 'src/error-handling/error-handling.service';
 import { Mission } from 'src/types';
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class SanityService {
@@ -66,6 +67,32 @@ export class SanityService {
       await this.sanityClient(false).patch(id).set(updateFields).commit();
     } catch (err) {
       this.errorHandlingService.handleError('Update operation failed', err);
+    }
+  }
+
+  async updateSanityRelation(
+    id: string,
+    relationField: string,
+    newReferences: string[],
+  ): Promise<void> {
+    try {
+      // Tworzymy tablicę obiektów referencyjnych z unikalnymi kluczami `_key`
+      const referencesToAdd = newReferences.map((ref) => ({
+        _type: 'reference',
+        _ref: ref,
+        _key: uuidv4(), // Generujemy unikalny klucz dla każdego elementu
+      }));
+
+      await this.sanityClient(false)
+        .patch(id) // Określamy ID obiektu, który chcemy zaktualizować
+        .setIfMissing({ [relationField]: [] }) // Upewniamy się, że pole relacji istnieje i jest tablicą
+        .append(relationField, referencesToAdd) // Dodajemy nowe referencje do pola relacji
+        .commit(); // Zatwierdzamy zmiany
+    } catch (err) {
+      this.errorHandlingService.handleError(
+        'Update relation operation failed',
+        err,
+      );
     }
   }
 }

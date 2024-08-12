@@ -4,7 +4,8 @@ import { DiscordService } from 'src/discord/discord.service';
 import { ErrorHandlingService } from 'src/error-handling/error-handling.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { SanityService } from 'src/sanity/sanity.service';
-import { Mission } from 'src/types';
+import { Mission, Rocket } from 'src/types';
+import { Launch } from 'src/types/launchFromSpaceLaunchNow';
 
 @Injectable()
 export class LaunchMonitoringService {
@@ -21,6 +22,7 @@ export class LaunchMonitoringService {
     changeWindowLaunches: new Set<string>(),
     changeProbabilityLaunches: new Set<string>(),
     sentNotifications: new Set<string>(),
+    updatedStatusLaunches: new Set<string>(),
   };
 
   async checkForUpcomingLaunches() {
@@ -117,7 +119,7 @@ export class LaunchMonitoringService {
     }
   }
 
-  async checkAndUpdateLaunch(launch: Mission, matchingLaunchFromAPI: any) {
+  async checkAndUpdateLaunch(launch: Mission, matchingLaunchFromAPI: Launch) {
     const { _id, name, apiMissionID } = launch;
     const { net, probability, window_start, window_end, status } =
       matchingLaunchFromAPI;
@@ -128,14 +130,18 @@ export class LaunchMonitoringService {
       message: string,
       updateFields: object,
     ) => {
-      if (!this.caches[cacheKey].has(_id)) {
-        this.discordService.sendMessage(message, apiMissionID);
-        await this.sanityService.updateSanityRecord(_id, updateFields);
-        this.caches[cacheKey].add(_id);
+      if (this.caches[cacheKey].has(_id)) {
+        return;
       }
+
+      // Perform the operation only if cache miss
+      await this.sanityService.updateSanityRecord(_id, updateFields);
+      this.discordService.sendMessage(message, apiMissionID);
+
+      // Update cache after successful operation
+      this.caches[cacheKey].add(_id);
     };
 
-    // Update launch date if it has changed and method is 'auto'
     if (
       launch.date !== net &&
       launch.dateUpdateMethod === 'auto' &&
@@ -148,7 +154,6 @@ export class LaunchMonitoringService {
       );
     }
 
-    // Update probability if it has changed
     if (launch.probability !== probability) {
       await updateAndNotify(
         'changeProbabilityLaunches',
@@ -157,7 +162,6 @@ export class LaunchMonitoringService {
       );
     }
 
-    // Update window start and end if they have changed
     if (
       launch.windowStart !== window_start ||
       launch.windowEnd !== window_end
@@ -172,6 +176,7 @@ export class LaunchMonitoringService {
       );
     }
 
+    // Handle status updates similarly
     const statusFieldsToUpdate = {
       Success: 'successfull_launches',
       PartialFailed: 'partial_failed_launches',
@@ -190,12 +195,16 @@ export class LaunchMonitoringService {
     }
 
     const statusField = statusFieldsToUpdate[externalAPIStatus.myAPIStatus];
-    if (statusField) {
-      const newValue = (parseInt(launch[statusField]) || 0) + 1;
-      console.log('Updating status field', statusField, 'to', newValue);
-      await this.sanityService.updateSanityRecord(launch.rocket._id, {
-        [statusField]: newValue.toString(),
-      });
+    if (statusField && launch?.rocket?._ref) {
+      const rocket: Rocket = await this.sanityService.fetch(
+        `*[_type == "rocket" && _id == "${launch.rocket._ref}"]`,
+      );
+      console.log(rocket[statusField]);
+      await updateAndNotify(
+        'updatedStatusLaunches',
+        `Status updated for mission: ${name} | ${configName}, field: ${statusField}`,
+        { [statusField]: (parseInt(rocket[statusField]) || 0) + 1 },
+      );
     }
   }
 }

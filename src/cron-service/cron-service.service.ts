@@ -57,7 +57,6 @@ export class CronServiceService {
       ]);
 
       console.log('Checking for changes in mission');
-      console.log('dataFromSanity', dataFromSanity.length);
 
       for (const launch of dataFromSanity.filter(
         (launch) => !launch.archived,

@@ -23,4 +23,6 @@ export interface Mission {
   archived: boolean;
   environment: 'development' | 'production';
   dateUpdateMethod: 'auto' | 'manual';
+  //only for relations
+  _ref: string;
 }

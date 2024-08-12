@@ -14,6 +14,7 @@ import { CronServiceService } from './cron-service/cron-service.service';
 import { ErrorHandlingModule } from './error-handling/error-handling.module';
 import { ExternalApiModule } from './external-api/external-api.module';
 import { LaunchMonitoringModule } from './launch-monitoring/launch-monitoring.module';
+import { CronServiceModule } from './cron-service/cron-service.module';
 
 @Module({
   imports: [
@@ -29,6 +30,8 @@ import { LaunchMonitoringModule } from './launch-monitoring/launch-monitoring.mo
     ErrorHandlingModule,
     ExternalApiModule,
     LaunchMonitoringModule,
+
+    CronServiceModule,
   ],
   providers: [
     AppService,

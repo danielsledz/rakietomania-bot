@@ -28,6 +28,10 @@ export const Statuses = [
     myAPIStatus: 'PartialFailed',
   },
   {
+    externalAPIStatus: 'Partial Success',
+    myAPIStatus: 'PartialSuccess',
+  },
+  {
     externalAPIStatus: 'TBD',
     myAPIStatus: 'ToBeDetermined',
   },

@@ -1,4 +1,5 @@
 import { Image } from './image';
+import { Mission } from './mission';
 
 export interface Booster {
   _id: string;
@@ -7,4 +8,6 @@ export interface Booster {
   image?: Image;
   status: string;
   currentLocation?: string;
+  missions: Mission[];
+  _ref: string;
 }

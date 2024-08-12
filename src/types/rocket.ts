@@ -4,6 +4,7 @@ import { Image } from './image';
 import { Stage } from './stage';
 
 export interface Rocket {
+  _ref: string;
   _id: string;
   name: string;
   description: string;
