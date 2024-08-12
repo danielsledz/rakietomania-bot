@@ -22,6 +22,7 @@ export class LaunchMonitoringService {
     changeWindowLaunches: new Set<string>(),
     changeProbabilityLaunches: new Set<string>(),
     sentNotifications: new Set<string>(),
+    changeStatusLaunches: new Set<string>(),
   };
 
   async checkForUpcomingLaunches() {
@@ -180,12 +181,14 @@ export class LaunchMonitoringService {
     );
 
     if (externalAPIStatus && launch.status !== externalAPIStatus.myAPIStatus) {
-      await this.sanityService.updateSanityRecord(_id, {
-        status: externalAPIStatus.myAPIStatus,
-      });
-      this.discordService.sendMessage(
-        `Status changed for mission: ${name} | ${configName} to ${externalAPIStatus.myAPIStatus} from ${launch.status}`,
-        apiMissionID,
+      await updateAndNotify(
+        'changeStatusLaunches',
+        `
+        Status changed for mission: ${name} | ${configName} from ${launch.status} to ${externalAPIStatus.myAPIStatus}
+        `,
+        {
+          status: externalAPIStatus.myAPIStatus,
+        },
       );
     }
   }
