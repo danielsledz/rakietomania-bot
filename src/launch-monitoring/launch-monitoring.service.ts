@@ -201,6 +201,7 @@ export class LaunchMonitoringService {
       );
       console.log(rocket);
       console.log(statusField);
+      console.log(rocket[statusField]);
       await updateAndNotify(
         'updatedStatusLaunches',
         `Status updated for mission: ${name} | ${configName}, field: ${statusField}`,
