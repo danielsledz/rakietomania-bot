@@ -52,6 +52,9 @@ export class CronServiceService {
   @Cron(CronExpression.EVERY_10_SECONDS)
   async checkMissionsForMissingData() {
     try {
+      if (!this.sanityService.sanityDataCache) {
+        return;
+      }
       const missions = await this.sanityService.sanityDataCache;
       const currentTime = new Date();
 
