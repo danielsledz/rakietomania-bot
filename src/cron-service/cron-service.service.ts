@@ -49,6 +49,68 @@ export class CronServiceService {
     }
   }
 
+  @Cron(CronExpression.EVERY_10_SECONDS)
+  async checkMissionsForMissingData() {
+    try {
+      const missions = await this.sanityService.sanityDataCache;
+      const currentTime = new Date();
+
+      for (const mission of missions) {
+        const missionTime = new Date(mission.date);
+        const timeDifference = missionTime.getTime() - currentTime.getTime();
+
+        // Sprawdź, czy do startu misji została godzina, ale nie mniej niż 59 minut i 50 sekund
+        if (
+          timeDifference <= 60 * 60 * 1000 &&
+          timeDifference > 59 * 60 * 1000 + 50 * 1000
+        ) {
+          // Sprawdź, czy misja ma dodaną transmisję
+          if (!mission.livestream) {
+            const message = `Misja "${mission.name}" nie ma dodanej transmisji.`;
+            this.discordService.sendMessage(message, mission.apiMissionID);
+          }
+
+          // Sprawdź, czy rakieta to "Falcon 9 Block 5" i czy ma dodany booster
+          if (
+            (mission.rocket.name === 'Falcon 9 Block 5' ||
+              mission.rocket.name === 'Falcon Heavy') &&
+            !mission.boosters.length
+          ) {
+            const message = `Misja "${mission.name}" z rakietą ${mission.rocket.name} nie ma przypisanego boostera.`;
+            this.discordService.sendMessage(message, mission.apiMissionID);
+          }
+        }
+
+        // Sprawdź, czy do startu misji zostało między 20 minut a 19 minut i 50 sekund
+        if (
+          timeDifference <= 20 * 60 * 1000 &&
+          timeDifference > 19 * 60 * 1000 + 50 * 1000
+        ) {
+          // Sprawdź, czy misja ma dodaną transmisję
+          if (!mission.livestream) {
+            const message = `Misja "${mission.name}" zbliża się do startu i nadal nie ma dodanej transmisji.`;
+            this.discordService.sendMessage(message, mission.apiMissionID);
+          }
+
+          // Sprawdź, czy rakieta to "Falcon 9 Block 5" i czy ma dodany booster
+          if (
+            (mission.rocket.name === 'Falcon 9 Block 5' ||
+              mission.rocket.name === 'Falcon Heavy') &&
+            !mission.boosters.length
+          ) {
+            const message = `Misja "${mission.name}" z rakietą ${mission.rocket.name} zbliża się do startu i nadal nie ma przypisanego boostera.`;
+            this.discordService.sendMessage(message, mission.apiMissionID);
+          }
+        }
+      }
+    } catch (error) {
+      this.errorHandlingService.handleError(
+        'Error while checking missions for missing data',
+        error,
+      );
+    }
+  }
+
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleCronAndCheckStatus() {
     try {

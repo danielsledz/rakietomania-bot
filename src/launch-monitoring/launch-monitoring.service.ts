@@ -4,7 +4,7 @@ import { DiscordService } from 'src/discord/discord.service';
 import { ErrorHandlingService } from 'src/error-handling/error-handling.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { SanityService } from 'src/sanity/sanity.service';
-import { Mission, Rocket } from 'src/types';
+import { Mission } from 'src/types';
 import { Launch } from 'src/types/launchFromSpaceLaunchNow';
 
 @Injectable()
@@ -22,7 +22,6 @@ export class LaunchMonitoringService {
     changeWindowLaunches: new Set<string>(),
     changeProbabilityLaunches: new Set<string>(),
     sentNotifications: new Set<string>(),
-    updatedStatusLaunches: new Set<string>(),
   };
 
   async checkForUpcomingLaunches() {
@@ -176,14 +175,6 @@ export class LaunchMonitoringService {
       );
     }
 
-    // Handle status updates similarly
-    const statusFieldsToUpdate = {
-      Success: 'successfull_launches',
-      PartialFailed: 'partial_failed_launches',
-      Failed: 'failed_launches',
-      PartialSuccess: 'partial_successfull_launches',
-    };
-
     const externalAPIStatus = Statuses.find(
       (statusItem) => statusItem.externalAPIStatus === status.abbrev,
     );
@@ -192,20 +183,9 @@ export class LaunchMonitoringService {
       await this.sanityService.updateSanityRecord(_id, {
         status: externalAPIStatus.myAPIStatus,
       });
-    }
-
-    const statusField = statusFieldsToUpdate[externalAPIStatus.myAPIStatus];
-    if (statusField && launch?.rocket?._ref) {
-      const rocket: Rocket = await this.sanityService.fetch(
-        `*[_type == "rocket" && _id == "${launch.rocket._ref}"]`,
-      );
-      console.log(rocket);
-      console.log(statusField);
-      console.log(rocket[statusField]);
-      await updateAndNotify(
-        'updatedStatusLaunches',
-        `Status updated for mission: ${name} | ${configName}, field: ${statusField}`,
-        { [statusField]: (parseInt(rocket[statusField]) || 0) + 1 },
+      this.discordService.sendMessage(
+        `Status changed for mission: ${name} | ${configName} to ${externalAPIStatus.myAPIStatus} from ${launch.status}`,
+        apiMissionID,
       );
     }
   }
