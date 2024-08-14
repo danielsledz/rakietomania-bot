@@ -43,7 +43,8 @@ export class LaunchMonitoringService {
         timeUnit: string,
       ) => {
         for (const launch of launches) {
-          if (!this.caches.sentNotifications.has(`${launch._id}_${tag}`)) {
+          const cacheKey = `${launch._id}_${tag}`;
+          if (!this.caches.sentNotifications.has(cacheKey)) {
             const rocketName = await this.sanityService.fetch(
               `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
             );
@@ -57,7 +58,8 @@ export class LaunchMonitoringService {
             });
             this.discordService.sendMessageAboutNotification(message);
 
-            this.caches.sentNotifications.add(`${launch._id}_${tag}`);
+            // Add to cache after successful notification
+            this.caches.sentNotifications.add(cacheKey);
           }
         }
       };
