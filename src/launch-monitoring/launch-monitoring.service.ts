@@ -161,7 +161,7 @@ export class LaunchMonitoringService {
     ) {
       await updateAndNotify(
         'changeDateLaunches',
-        `Date changed for mission: ${name} | ${configName}`,
+        `Date changed for mission: ${name} | ${configName} from ${launch.date} to ${net}`,
         { date: net },
       );
     }
@@ -169,7 +169,7 @@ export class LaunchMonitoringService {
     if (launch.probability !== probability) {
       await updateAndNotify(
         'changeProbabilityLaunches',
-        `Probability changed for mission: ${name} | ${configName}`,
+        `Probability changed for mission: ${name} | ${configName} from ${launch.probability}% to ${probability}%`,
         { probability },
       );
     }
@@ -180,7 +180,7 @@ export class LaunchMonitoringService {
     ) {
       await updateAndNotify(
         'changeWindowLaunches',
-        `WindowStart and WindowEnd changed for mission: ${name} | ${configName}`,
+        `WindowStart and WindowEnd changed for mission: ${name} | ${configName} from ${launch.windowStart} - ${launch.windowEnd} to ${window_start} - ${window_end}`,
         {
           windowStart: window_start,
           windowEnd: window_end,
@@ -193,9 +193,14 @@ export class LaunchMonitoringService {
     );
 
     if (externalAPIStatus && launch.status !== externalAPIStatus.myAPIStatus) {
+      const previousStatus = launch.status;
       await this.sanityService.updateSanityRecord(_id, {
         status: externalAPIStatus.myAPIStatus,
       });
+      this.discordService.sendMessage(
+        `Status changed for mission: ${name} | ${configName} from ${previousStatus} to ${externalAPIStatus.myAPIStatus}`,
+        apiMissionID,
+      );
     }
   }
 }
