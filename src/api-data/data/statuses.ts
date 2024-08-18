@@ -1,38 +1,40 @@
+import { MissionStatus } from 'src/types/missionStatus';
+
 export const Statuses = [
   {
     externalAPIStatus: 'In Flight',
-    myAPIStatus: 'InFlight',
+    myAPIStatus: MissionStatus.InFlight,
   },
   {
     externalAPIStatus: 'TBC',
-    myAPIStatus: 'ToBeConfirmed',
+    myAPIStatus: MissionStatus.ToBeConfirmed,
   },
   {
     externalAPIStatus: 'Go',
-    myAPIStatus: 'Confirmed',
+    myAPIStatus: MissionStatus.Confirmed,
   },
   {
     externalAPIStatus: 'Success',
-    myAPIStatus: 'Success',
+    myAPIStatus: MissionStatus.Success,
   },
   {
     externalAPIStatus: 'Failure',
-    myAPIStatus: 'Failed',
+    myAPIStatus: MissionStatus.Failed,
   },
   {
     externalAPIStatus: 'Hold',
-    myAPIStatus: 'Hold',
+    myAPIStatus: MissionStatus.Hold,
   },
   {
     externalAPIStatus: 'Partial Failure',
-    myAPIStatus: 'PartialFailed',
+    myAPIStatus: MissionStatus.PartialFailed,
   },
   {
     externalAPIStatus: 'Partial Success',
-    myAPIStatus: 'PartialSuccess',
+    myAPIStatus: MissionStatus.PartialSuccess,
   },
   {
     externalAPIStatus: 'TBD',
-    myAPIStatus: 'ToBeDetermined',
+    myAPIStatus: MissionStatus.ToBeDetermined,
   },
 ];

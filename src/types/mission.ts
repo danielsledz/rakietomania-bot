@@ -1,5 +1,6 @@
 import { Booster } from './booster';
 import { Image } from './image';
+import { MissionStatus } from './missionStatus';
 import { Payload } from './payload';
 import { Rocket } from './rocket';
 
@@ -7,7 +8,7 @@ export interface Mission {
   name: string;
   apiMissionID: string;
   date: string;
-  status: string;
+  status: MissionStatus;
   description?: string;
   specifications?: string;
   windowStart?: string;

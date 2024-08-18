@@ -6,6 +6,11 @@ import { NotificationsService } from 'src/notifications/notifications.service';
 import { SanityService } from 'src/sanity/sanity.service';
 import { Mission } from 'src/types';
 import { Launch } from 'src/types/launchFromSpaceLaunchNow';
+import {
+  NotificationTime,
+  NotificationTimeType,
+} from './config/notificationTimeConfig';
+import { MissionStatus } from 'src/types/missionStatus';
 
 @Injectable()
 export class LaunchMonitoringService {
@@ -22,7 +27,7 @@ export class LaunchMonitoringService {
     changeWindowLaunches: new Set<string>(),
     changeProbabilityLaunches: new Set<string>(),
     sentNotifications: new Set<string>(),
-    changeStatusLaunches: new Set<string>(),
+    updatedStatusLaunches: new Set<string>(),
   };
 
   async checkForUpcomingLaunches() {
@@ -34,17 +39,15 @@ export class LaunchMonitoringService {
         console.log('Sanity data cache is empty or not fetched yet.');
         return;
       }
-
       const currentTime = new Date();
 
       const notifyLaunches = async (
         launches: Mission[],
-        tag: 'TEN_MINUTES' | 'ONE_HOUR' | 'TWENTY_FOUR_HOURS',
+        tag: NotificationTimeType,
         timeUnit: string,
       ) => {
         for (const launch of launches) {
-          const cacheKey = `${launch._id}_${tag}`;
-          if (!this.caches.sentNotifications.has(cacheKey)) {
+          if (!this.caches.sentNotifications.has(`${launch._id}_${tag}`)) {
             const rocketName = await this.sanityService.fetch(
               `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
             );
@@ -58,17 +61,16 @@ export class LaunchMonitoringService {
             });
             this.discordService.sendMessageAboutNotification(message);
 
-            // Add to cache after successful notification
-            this.caches.sentNotifications.add(cacheKey);
+            this.caches.sentNotifications.add(`${launch._id}_${tag}`);
           }
         }
       };
 
-      const isValidStatus = (status: string) => {
+      const isValidStatus = (status: MissionStatus) => {
         return (
-          status !== 'ToBeConfirmed' &&
-          status !== 'ToBeDetermined' &&
-          status !== 'Hold'
+          status !== MissionStatus.ToBeConfirmed &&
+          status !== MissionStatus.ToBeDetermined &&
+          status !== MissionStatus.Hold
         );
       };
 
@@ -109,9 +111,17 @@ export class LaunchMonitoringService {
       );
 
       await Promise.all([
-        notifyLaunches(launchesStartingSoon, 'TEN_MINUTES', '10 minut'),
-        notifyLaunches(launchesInOneHour, 'ONE_HOUR', 'godziny'),
-        notifyLaunches(launchesIn24Hours, 'TWENTY_FOUR_HOURS', '24 godzin'),
+        notifyLaunches(
+          launchesStartingSoon,
+          NotificationTime.TEN_MINUTES,
+          '10 minut',
+        ),
+        notifyLaunches(launchesInOneHour, NotificationTime.ONE_HOUR, 'godziny'),
+        notifyLaunches(
+          launchesIn24Hours,
+          NotificationTime.TWENTY_FOUR_HOURS,
+          '24 godzin',
+        ),
       ]);
     } catch (error) {
       this.errorHandlingService.handleError(
@@ -183,15 +193,9 @@ export class LaunchMonitoringService {
     );
 
     if (externalAPIStatus && launch.status !== externalAPIStatus.myAPIStatus) {
-      await updateAndNotify(
-        'changeStatusLaunches',
-        `
-        Status changed for mission: ${name} | ${configName} from ${launch.status} to ${externalAPIStatus.myAPIStatus}
-        `,
-        {
-          status: externalAPIStatus.myAPIStatus,
-        },
-      );
+      await this.sanityService.updateSanityRecord(_id, {
+        status: externalAPIStatus.myAPIStatus,
+      });
     }
   }
 }

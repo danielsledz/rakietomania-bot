@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Client } from 'onesignal-node';
 import { CreateNotificationBody } from 'onesignal-node/lib/types';
+import { NotificationTimeType } from 'src/launch-monitoring/config/notificationTimeConfig';
 
 @Injectable()
 export class NotificationsService {
@@ -17,7 +18,7 @@ export class NotificationsService {
   async sendLaunchNotification(data: {
     message: string;
     body: string;
-    tag: 'TEN_MINUTES' | 'ONE_HOUR' | 'TWENTY_FOUR_HOURS';
+    tag: NotificationTimeType;
     image: string;
     launchId: string;
   }) {
