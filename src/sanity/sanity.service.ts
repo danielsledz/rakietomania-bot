@@ -24,6 +24,7 @@ export class SanityService {
       projectId,
       dataset,
       useCdn: false, // Szybkie odczyty, potencjalnie przestarzałe dane
+      apiVersion: '2024-08-18',
     });
 
     this.writeClient = createClient({
@@ -31,6 +32,7 @@ export class SanityService {
       dataset,
       token,
       useCdn: false, // Aktualne dane, ale wolniejsze odczyty
+      apiVersion: '2024-08-18',
     });
   }
 

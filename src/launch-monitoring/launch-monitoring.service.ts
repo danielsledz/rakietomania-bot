@@ -137,6 +137,12 @@ export class LaunchMonitoringService {
       matchingLaunchFromAPI;
     const configName = matchingLaunchFromAPI.rocket.configuration.name;
 
+    // Funkcja do formatowania daty
+    const formatDateToPolishTimezone = (dateString: string) => {
+      const date = new Date(dateString);
+      return date.toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw' });
+    };
+
     const updateAndNotify = async (
       cacheKey: string,
       message: string,
@@ -159,9 +165,11 @@ export class LaunchMonitoringService {
       launch.dateUpdateMethod === 'auto' &&
       !launch.archived
     ) {
+      const oldDateFormatted = formatDateToPolishTimezone(launch.date);
+      const newDateFormatted = formatDateToPolishTimezone(net);
       await updateAndNotify(
         'changeDateLaunches',
-        `Date changed for mission: ${name} | ${configName} from ${launch.date} to ${net}`,
+        `Date changed for mission: ${name} | ${configName} from ${oldDateFormatted} to ${newDateFormatted}`,
         { date: net },
       );
     }
@@ -178,9 +186,18 @@ export class LaunchMonitoringService {
       launch.windowStart !== window_start ||
       launch.windowEnd !== window_end
     ) {
+      const oldWindowStartFormatted = formatDateToPolishTimezone(
+        launch.windowStart,
+      );
+      const oldWindowEndFormatted = formatDateToPolishTimezone(
+        launch.windowEnd,
+      );
+      const newWindowStartFormatted = formatDateToPolishTimezone(window_start);
+      const newWindowEndFormatted = formatDateToPolishTimezone(window_end);
+
       await updateAndNotify(
         'changeWindowLaunches',
-        `WindowStart and WindowEnd changed for mission: ${name} | ${configName} from ${launch.windowStart} - ${launch.windowEnd} to ${window_start} - ${window_end}`,
+        `WindowStart and WindowEnd changed for mission: ${name} | ${configName} from ${oldWindowStartFormatted} - ${oldWindowEndFormatted} to ${newWindowStartFormatted} - ${newWindowEndFormatted}`,
         {
           windowStart: window_start,
           windowEnd: window_end,
