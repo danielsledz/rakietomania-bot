@@ -30,6 +30,20 @@ export class LaunchMonitoringService {
     updatedStatusLaunches: new Set<string>(),
   };
 
+  private lockedNotifications: Set<string> = new Set();
+
+  private lockNotification(notificationKey: string): boolean {
+    if (this.lockedNotifications.has(notificationKey)) {
+      return false;
+    }
+    this.lockedNotifications.add(notificationKey);
+    return true;
+  }
+
+  private unlockNotification(notificationKey: string): void {
+    this.lockedNotifications.delete(notificationKey);
+  }
+
   async checkForUpcomingLaunches() {
     try {
       if (
@@ -40,14 +54,23 @@ export class LaunchMonitoringService {
         return;
       }
       const currentTime = new Date();
-
       const notifyLaunches = async (
         launches: Mission[],
         tag: NotificationTimeType,
         timeUnit: string,
       ) => {
         for (const launch of launches) {
-          if (!this.caches.sentNotifications.has(`${launch._id}_${tag}`)) {
+          const notificationKey = `${launch._id}_${tag}`;
+          if (!this.caches.sentNotifications.has(notificationKey)) {
+            // Zastosowanie blokady dla danego launch ID
+            if (!this.lockNotification(notificationKey)) {
+              console.log(
+                `Another process is already sending notification for ${notificationKey}`,
+              );
+              continue;
+            }
+
+            console.log(`Sending notification for ${notificationKey}`);
             const rocketName = await this.sanityService.fetch(
               `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
             );
@@ -59,9 +82,29 @@ export class LaunchMonitoringService {
               image: rocketName[0].rocket.imageUrl,
               launchId: launch._id,
             });
-            this.discordService.sendMessageAboutNotification(message);
 
-            this.caches.sentNotifications.add(`${launch._id}_${tag}`);
+            console.log(
+              message,
+              `W ciągu ${timeUnit} rozpocznie się start misji ${launch.name}!`,
+              tag,
+              rocketName[0].rocket.imageUrl, // image
+              launch.name, // launchName
+              launch.livestream,
+            );
+
+            await this.discordService.sendMessageAboutNotification(
+              message,
+              `W ciągu ${timeUnit} rozpocznie się start misji ${launch.name}!`,
+              tag,
+              rocketName[0].rocket.imageUrl, // image
+              launch._id, // launch
+              launch.name, // launchName
+              launch.livestream,
+            );
+            this.caches.sentNotifications.add(notificationKey);
+            this.unlockNotification(notificationKey);
+          } else {
+            console.log(`Notification for ${notificationKey} already sent.`);
           }
         }
       };
@@ -131,8 +174,42 @@ export class LaunchMonitoringService {
     }
   }
 
+  async updateAndNotify(
+    cacheKey: string,
+    fieldName: string,
+    missionName: string,
+    rocketName: string,
+    oldValue: string | number,
+    newValue: string | number,
+    updateFields: object,
+    _id: string,
+  ) {
+    if (this.caches[cacheKey].has(_id)) {
+      return;
+    }
+
+    // Zbudowanie szczegółowej wiadomości
+    const messageTitle = `Zmieniono ${fieldName}`;
+    const messageBody =
+      `Pole: **${fieldName}**\n` +
+      `Misja: **${missionName}**\n` +
+      `Rakieta: **${rocketName}**\n` +
+      `Wartość przed: **${oldValue}**\n` +
+      `Wartość po: **${newValue}**\n` +
+      `ID Misji: **${_id}**`;
+
+    // Aktualizacja rekordu w Sanity
+    await this.sanityService.updateSanityRecord(_id, updateFields);
+
+    // Wysłanie wiadomości na Discord
+    await this.discordService.sendMessage(messageTitle, messageBody);
+
+    // Aktualizacja cache po udanej operacji
+    this.caches[cacheKey].add(_id);
+  }
+
   async checkAndUpdateLaunch(launch: Mission, matchingLaunchFromAPI: Launch) {
-    const { _id, name, apiMissionID } = launch;
+    const { _id, name } = launch;
     const { net, probability, window_start, window_end, status } =
       matchingLaunchFromAPI;
     const configName = matchingLaunchFromAPI.rocket.configuration.name;
@@ -143,23 +220,6 @@ export class LaunchMonitoringService {
       return date.toLocaleString('pl-PL', { timeZone: 'Europe/Warsaw' });
     };
 
-    const updateAndNotify = async (
-      cacheKey: string,
-      message: string,
-      updateFields: object,
-    ) => {
-      if (this.caches[cacheKey].has(_id)) {
-        return;
-      }
-
-      // Perform the operation only if cache miss
-      await this.sanityService.updateSanityRecord(_id, updateFields);
-      this.discordService.sendMessage(message, apiMissionID);
-
-      // Update cache after successful operation
-      this.caches[cacheKey].add(_id);
-    };
-
     if (
       launch.date !== net &&
       launch.dateUpdateMethod === 'auto' &&
@@ -167,18 +227,32 @@ export class LaunchMonitoringService {
     ) {
       const oldDateFormatted = formatDateToPolishTimezone(launch.date);
       const newDateFormatted = formatDateToPolishTimezone(net);
-      await updateAndNotify(
+      await this.updateAndNotify(
         'changeDateLaunches',
-        `Date changed for mission: ${name} | ${configName} from ${oldDateFormatted} to ${newDateFormatted}`,
+        'data startu',
+        name,
+        configName,
+        oldDateFormatted,
+        newDateFormatted,
         { date: net },
+        _id,
       );
     }
 
     if (launch.probability !== probability) {
-      await updateAndNotify(
+      const oldProbability =
+        launch.probability !== null ? `${launch.probability}%` : 'null';
+      const newProbability = probability !== null ? `${probability}%` : 'null';
+
+      await this.updateAndNotify(
         'changeProbabilityLaunches',
-        `Probability changed for mission: ${name} | ${configName} from ${launch.probability}% to ${probability}%`,
+        'prawdopodobieństwo startu',
+        name,
+        configName,
+        oldProbability,
+        newProbability,
         { probability },
+        _id,
       );
     }
 
@@ -195,13 +269,18 @@ export class LaunchMonitoringService {
       const newWindowStartFormatted = formatDateToPolishTimezone(window_start);
       const newWindowEndFormatted = formatDateToPolishTimezone(window_end);
 
-      await updateAndNotify(
+      await this.updateAndNotify(
         'changeWindowLaunches',
-        `WindowStart and WindowEnd changed for mission: ${name} | ${configName} from ${oldWindowStartFormatted} - ${oldWindowEndFormatted} to ${newWindowStartFormatted} - ${newWindowEndFormatted}`,
+        'okno czasowe startu',
+        name,
+        configName,
+        `${oldWindowStartFormatted} - ${oldWindowEndFormatted}`,
+        `${newWindowStartFormatted} - ${newWindowEndFormatted}`,
         {
           windowStart: window_start,
           windowEnd: window_end,
         },
+        _id,
       );
     }
 
@@ -215,8 +294,8 @@ export class LaunchMonitoringService {
         status: externalAPIStatus.myAPIStatus,
       });
       this.discordService.sendMessage(
-        `Status changed for mission: ${name} | ${configName} from ${previousStatus} to ${externalAPIStatus.myAPIStatus}`,
-        apiMissionID,
+        `Zmieniono status`,
+        `Pole: **status**\nMisja: **${name}**\nRakieta: **${configName}**\nWartość przed: **${previousStatus}**\nWartość po: **${externalAPIStatus.myAPIStatus}**\nID Misji: **${_id}**`,
       );
     }
   }

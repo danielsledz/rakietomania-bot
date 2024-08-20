@@ -29,7 +29,15 @@ export class DiscordService {
     return false;
   }
 
-  async sendMessageAboutNotification(message: string) {
+  async sendMessageAboutNotification(
+    message: string,
+    body: string,
+    tag: string,
+    image: string,
+    launchId: string,
+    launchName: string,
+    livestream?: string,
+  ) {
     if (!this.canSendMessage(message)) {
       this.logger.warn(
         `Message not sent. Duplicate message within 10 minutes: ${message}`,
@@ -37,15 +45,30 @@ export class DiscordService {
       return;
     }
 
+    const fields = [
+      { name: 'Tag', value: tag, inline: true },
+      { name: 'Launch ID', value: launchId, inline: true },
+      { name: 'Launch Name', value: launchName, inline: true },
+      {
+        name: 'Livestream',
+        value: livestream || 'Brak dodanej transmisji',
+        inline: true,
+      },
+    ];
+
     const payload = {
       embeds: [
         {
-          title: 'Wysłano powiadomienie',
-          description: message,
+          title: message,
+          description: body,
+          color: 0x00ff00,
+          fields: fields,
+          image: {
+            url: image,
+          },
         },
       ],
     };
-
     try {
       await axios.post(this.discordWebhookUrl, payload);
     } catch (error) {
@@ -54,10 +77,10 @@ export class DiscordService {
     }
   }
 
-  async sendMessage(message: string, id: string): Promise<void> {
-    if (!this.canSendMessage(message)) {
+  async sendMessage(title: string, body: string): Promise<void> {
+    if (!this.canSendMessage(title)) {
       this.logger.warn(
-        `Message not sent. Duplicate message within 10 minutes: ${message}`,
+        `Message not sent. Duplicate message within 10 minutes: ${title}`,
       );
       return;
     }
@@ -65,8 +88,8 @@ export class DiscordService {
     const payload = {
       embeds: [
         {
-          title: message,
-          description: 'ID: ' + id,
+          title: title,
+          description: `${body}\n`,
           color: 0x00ff00,
         },
       ],
