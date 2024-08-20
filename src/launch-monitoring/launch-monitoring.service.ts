@@ -297,6 +297,7 @@ export class LaunchMonitoringService {
         `Zmieniono status`,
         `Pole: **status**\nMisja: **${name}**\nRakieta: **${configName}**\nWartość przed: **${previousStatus}**\nWartość po: **${externalAPIStatus.myAPIStatus}**\nID Misji: **${_id}**`,
       );
+      this.caches.updatedStatusLaunches.add(_id);
     }
   }
 }

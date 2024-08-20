@@ -201,13 +201,14 @@ export class CronServiceService {
     }
   }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron('0 */20 * * * *') // Co 20 minut
   clearChangeCaches() {
     try {
       [
         'changeDateLaunches',
         'changeWindowLaunches',
         'changeProbabilityLaunches',
+        'updatedStatusLaunches',
       ].forEach((cacheKey) =>
         this.launchMonitoringService.caches[cacheKey].clear(),
       );
