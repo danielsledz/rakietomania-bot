@@ -201,7 +201,7 @@ export class CronServiceService {
     }
   }
 
-  @Cron('0 */20 * * * *') // Co 20 minut
+  @Cron('0 */21 * * * *') // Co 21 minut
   clearChangeCaches() {
     try {
       [
