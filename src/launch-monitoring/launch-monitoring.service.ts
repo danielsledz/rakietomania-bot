@@ -30,6 +30,20 @@ export class LaunchMonitoringService {
     updatedStatusLaunches: new Set<string>(),
   };
 
+  private lockedNotifications: Set<string> = new Set();
+
+  private lockNotification(notificationKey: string): boolean {
+    if (this.lockedNotifications.has(notificationKey)) {
+      return false;
+    }
+    this.lockedNotifications.add(notificationKey);
+    return true;
+  }
+
+  private unlockNotification(notificationKey: string): void {
+    this.lockedNotifications.delete(notificationKey);
+  }
+
   async checkForUpcomingLaunches() {
     try {
       if (
@@ -40,14 +54,23 @@ export class LaunchMonitoringService {
         return;
       }
       const currentTime = new Date();
-
       const notifyLaunches = async (
         launches: Mission[],
         tag: NotificationTimeType,
         timeUnit: string,
       ) => {
         for (const launch of launches) {
-          if (!this.caches.sentNotifications.has(`${launch._id}_${tag}`)) {
+          const notificationKey = `${launch._id}_${tag}`;
+          if (!this.caches.sentNotifications.has(notificationKey)) {
+            // Zastosowanie blokady dla danego launch ID
+            if (!this.lockNotification(notificationKey)) {
+              console.log(
+                `Another process is already sending notification for ${notificationKey}`,
+              );
+              continue;
+            }
+
+            console.log(`Sending notification for ${notificationKey}`);
             const rocketName = await this.sanityService.fetch(
               `*[_type == "mission" && _id == "${launch._id}"]{..., rocket->{name, "imageUrl": image.asset->url}}`,
             );
@@ -59,9 +82,20 @@ export class LaunchMonitoringService {
               image: rocketName[0].rocket.imageUrl,
               launchId: launch._id,
             });
-            this.discordService.sendMessageAboutNotification(message);
 
-            this.caches.sentNotifications.add(`${launch._id}_${tag}`);
+            await this.discordService.sendMessageAboutNotification(
+              message,
+              `W ciągu ${timeUnit} rozpocznie się start misji ${launch.name}!`,
+              tag,
+              rocketName[0].rocket.imageUrl, // image
+              launch._id, // launchId
+              launch.name, // launchName
+              launch.livestream,
+            );
+            this.caches.sentNotifications.add(notificationKey);
+            this.unlockNotification(notificationKey);
+          } else {
+            console.log(`Notification for ${notificationKey} already sent.`);
           }
         }
       };
@@ -130,7 +164,6 @@ export class LaunchMonitoringService {
       );
     }
   }
-
   async checkAndUpdateLaunch(launch: Mission, matchingLaunchFromAPI: Launch) {
     const { _id, name, apiMissionID } = launch;
     const { net, probability, window_start, window_end, status } =

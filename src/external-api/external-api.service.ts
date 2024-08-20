@@ -39,20 +39,20 @@ export class ExternalApiService {
         let count = 0;
         let previous: string | null = null;
 
-        while (nextUrl) {
-          console.log(nextUrl);
+        // while (nextUrl) {
+        console.log(nextUrl);
 
-          const response = await axios.get(nextUrl).finally(() => {
-            console.log('Pobralem reuqest');
-          });
+        const response = await axios.get(nextUrl).finally(() => {
+          console.log('Pobralem reuqest');
+        });
 
-          const data = response.data;
+        const data = response.data;
 
-          allData = allData.concat(data.results);
-          nextUrl = data.next;
-          count = data.count;
-          previous = data.previous;
-        }
+        allData = allData.concat(data.results);
+        nextUrl = null;
+        count = data.count;
+        previous = data.previous;
+        // }
 
         this.launchApiDataCache = {
           count,
