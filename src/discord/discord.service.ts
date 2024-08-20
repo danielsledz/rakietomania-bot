@@ -45,12 +45,15 @@ export class DiscordService {
       return;
     }
 
-    // Kod dla generowania pola "Boosters"
     const fields = [
       { name: 'Tag', value: tag, inline: true },
       { name: 'Launch ID', value: launchId, inline: true },
       { name: 'Launch Name', value: launchName, inline: true },
-      { name: 'Livestream', value: livestream || 'N/A', inline: true },
+      {
+        name: 'Livestream',
+        value: livestream || 'Brak dodanej transmisji',
+        inline: true,
+      },
     ];
 
     const payload = {
@@ -74,10 +77,10 @@ export class DiscordService {
     }
   }
 
-  async sendMessage(message: string, id: string): Promise<void> {
-    if (!this.canSendMessage(message)) {
+  async sendMessage(title: string, body: string): Promise<void> {
+    if (!this.canSendMessage(title)) {
       this.logger.warn(
-        `Message not sent. Duplicate message within 10 minutes: ${message}`,
+        `Message not sent. Duplicate message within 10 minutes: ${title}`,
       );
       return;
     }
@@ -85,8 +88,8 @@ export class DiscordService {
     const payload = {
       embeds: [
         {
-          title: message,
-          description: 'ID: ' + id,
+          title: title,
+          description: `${body}\n`,
           color: 0x00ff00,
         },
       ],

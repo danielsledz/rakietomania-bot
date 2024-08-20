@@ -5,6 +5,7 @@ import { ErrorHandlingService } from 'src/error-handling/error-handling.service'
 import { ExternalApiService } from 'src/external-api/external-api.service';
 import { LaunchMonitoringService } from 'src/launch-monitoring/launch-monitoring.service';
 import { SanityService } from 'src/sanity/sanity.service';
+import { Rocket } from 'src/types';
 
 @Injectable()
 export class CronServiceService {
@@ -15,6 +16,7 @@ export class CronServiceService {
     private readonly errorHandlingService: ErrorHandlingService,
     private readonly externalApiService: ExternalApiService,
   ) {}
+
   @Cron(CronExpression.EVERY_5_MINUTES)
   async deleteOldLaunches() {
     try {
@@ -31,10 +33,9 @@ export class CronServiceService {
         if (
           !this.launchMonitoringService.caches.archivedLaunches.has(launch._id)
         ) {
-          this.discordService.sendMessage(
-            'Archived mission: ' + launch.name,
-            launch.apiMissionID,
-          );
+          const title = 'Zarchiwizowano misję';
+          const body = `Misja **${launch.name}** została zarchiwizowana.`;
+          this.discordService.sendMessage(title, body);
           await this.sanityService.updateSanityRecord(launch._id, {
             archived: true,
           });
@@ -67,20 +68,24 @@ export class CronServiceService {
           timeDifference <= 60 * 60 * 1000 &&
           timeDifference > 59 * 60 * 1000 + 50 * 1000
         ) {
-          // Sprawdź, czy misja ma dodaną transmisję
           if (!mission.livestream) {
-            const message = `Misja "${mission.name}" nie ma dodanej transmisji.`;
-            this.discordService.sendMessage(message, mission.apiMissionID);
+            const title = 'Zbliżający się start - brak transmisji';
+            const body = `Misja **${mission.name}** rozpocznie się za godzinę, nie ma dodanej transmisji.`;
+            this.discordService.sendMessage(title, body);
           }
 
-          // Sprawdź, czy rakieta to "Falcon 9 Block 5" i czy ma dodany booster
+          const rocket: Rocket = await this.sanityService.fetch(
+            `*[_type == "rocket" && _id == "${mission.rocket._ref}"]`,
+          );
+
           if (
-            (mission.rocket.name === 'Falcon 9 Block 5' ||
-              mission.rocket.name === 'Falcon Heavy') &&
-            !mission.boosters.length
+            (rocket[0].name === 'Falcon 9 Block 5' ||
+              rocket[0].name === 'Falcon Heavy') &&
+            !mission.boosters
           ) {
-            const message = `Misja "${mission.name}" z rakietą ${mission.rocket.name} nie ma przypisanego boostera.`;
-            this.discordService.sendMessage(message, mission.apiMissionID);
+            const title = 'Zbliżający się start - brak boostera';
+            const body = `Misja **${mission.name}** z rakietą **${rocket[0].name}** rozpocznie się za godzinę, a nie ma przypisanego boostera.`;
+            this.discordService.sendMessage(title, body);
           }
         }
 
@@ -89,20 +94,24 @@ export class CronServiceService {
           timeDifference <= 20 * 60 * 1000 &&
           timeDifference > 19 * 60 * 1000 + 50 * 1000
         ) {
-          // Sprawdź, czy misja ma dodaną transmisję
           if (!mission.livestream) {
-            const message = `Misja "${mission.name}" zbliża się do startu i nadal nie ma dodanej transmisji.`;
-            this.discordService.sendMessage(message, mission.apiMissionID);
+            const title = 'Zbliżający się start - brak transmisji';
+            const body = `Misja **${mission.name}** rozpocznie się za 20 minut, a nadal nie ma dodanej transmisji.`;
+            this.discordService.sendMessage(title, body);
           }
 
-          // Sprawdź, czy rakieta to "Falcon 9 Block 5" i czy ma dodany booster
+          const rocket: Rocket = await this.sanityService.fetch(
+            `*[_type == "rocket" && _id == "${mission.rocket._ref}"]`,
+          );
+
           if (
-            (mission.rocket.name === 'Falcon 9 Block 5' ||
-              mission.rocket.name === 'Falcon Heavy') &&
-            !mission.boosters.length
+            (rocket[0].name === 'Falcon 9 Block 5' ||
+              rocket[0].name === 'Falcon Heavy') &&
+            !mission.boosters
           ) {
-            const message = `Misja "${mission.name}" z rakietą ${mission.rocket.name} zbliża się do startu i nadal nie ma przypisanego boostera.`;
-            this.discordService.sendMessage(message, mission.apiMissionID);
+            const title = 'Zbliżający się start - brak boostera';
+            const body = `Misja **${mission.name}** z rakietą **${rocket[0].name}** rozpocznie się za 20 minut, a nadal nie ma przypisanego boostera.`;
+            this.discordService.sendMessage(title, body);
           }
         }
       }
