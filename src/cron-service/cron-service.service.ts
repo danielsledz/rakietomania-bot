@@ -56,70 +56,81 @@ export class CronServiceService {
       if (!this.sanityService.sanityDataCache) {
         return;
       }
+
       const missions = await this.sanityService.sanityDataCache;
-      const currentTime = new Date();
+      const currentTime = new Date().getTime();
 
       for (const mission of missions) {
-        const missionTime = new Date(mission.date);
-        const timeDifference = missionTime.getTime() - currentTime.getTime();
+        const missionTime = new Date(mission.date).getTime();
+        const timeDifference = missionTime - currentTime;
 
-        // Sprawdź, czy do startu misji została godzina, ale nie mniej niż 59 minut i 50 sekund
-        if (
-          timeDifference <= 60 * 60 * 1000 &&
-          timeDifference > 59 * 60 * 1000 + 50 * 1000
-        ) {
-          if (!mission.livestream) {
-            const title = 'Zbliżający się start - brak transmisji';
-            const body = `Misja **${mission.name}** rozpocznie się za godzinę, nie ma dodanej transmisji.`;
-            this.discordService.sendMessage(title, body);
-          }
+        // Sprawdz czy misja ma mniej niż 24h i nie ma przypisanej transmisji lub boostera
+        this.checkAndNotify(
+          timeDifference,
+          24 * 60 * 60 * 1000, // 24h
+          23 * 60 * 60 * 1000 + 59 * 60 * 1000 + 50 * 1000, // 23h 59m 50s
+          mission,
+        );
 
-          const rocket: Rocket = await this.sanityService.fetch(
-            `*[_type == "rocket" && _id == "${mission.rocket._ref}"]`,
-          );
+        // Sprawdz czy misja ma mniej niż 1h i nie ma przypisanej transmisji lub boosteraa
+        this.checkAndNotify(
+          timeDifference,
+          60 * 60 * 1000, // 1h
+          59 * 60 * 1000 + 50 * 1000, // 59m 50s
+          mission,
+        );
 
-          if (
-            (rocket[0].name === 'Falcon 9 Block 5' ||
-              rocket[0].name === 'Falcon Heavy') &&
-            !mission.boosters
-          ) {
-            const title = 'Zbliżający się start - brak boostera';
-            const body = `Misja **${mission.name}** z rakietą **${rocket[0].name}** rozpocznie się za godzinę, a nie ma przypisanego boostera.`;
-            this.discordService.sendMessage(title, body);
-          }
-        }
-
-        // Sprawdź, czy do startu misji zostało między 20 minut a 19 minut i 50 sekund
-        if (
-          timeDifference <= 20 * 60 * 1000 &&
-          timeDifference > 19 * 60 * 1000 + 50 * 1000
-        ) {
-          if (!mission.livestream) {
-            const title = 'Zbliżający się start - brak transmisji';
-            const body = `Misja **${mission.name}** rozpocznie się za 20 minut, a nadal nie ma dodanej transmisji.`;
-            this.discordService.sendMessage(title, body);
-          }
-
-          const rocket: Rocket = await this.sanityService.fetch(
-            `*[_type == "rocket" && _id == "${mission.rocket._ref}"]`,
-          );
-
-          if (
-            (rocket[0].name === 'Falcon 9 Block 5' ||
-              rocket[0].name === 'Falcon Heavy') &&
-            !mission.boosters
-          ) {
-            const title = 'Zbliżający się start - brak boostera';
-            const body = `Misja **${mission.name}** z rakietą **${rocket[0].name}** rozpocznie się za 20 minut, a nadal nie ma przypisanego boostera.`;
-            this.discordService.sendMessage(title, body);
-          }
-        }
+        // Sprawdz czy misja ma mniej niż 20 minut i nie ma przypisanej transmisji lub boostera
+        this.checkAndNotify(
+          timeDifference,
+          20 * 60 * 1000, // 20m
+          19 * 60 * 1000 + 50 * 1000, // 19m 50s
+          mission,
+        );
       }
     } catch (error) {
       this.errorHandlingService.handleError(
         'Error while checking missions for missing data',
         error,
       );
+    }
+  }
+
+  private async checkAndNotify(
+    timeDifference: number,
+    upperLimit: number,
+    lowerLimit: number,
+    mission: any,
+  ) {
+    if (timeDifference <= upperLimit && timeDifference > lowerLimit) {
+      let timeUnit = 'godzin(y)';
+      let timeValue = upperLimit / (60 * 60 * 1000); // Domyślnie w godzinach
+
+      // Jeżeli górny limit to 20 minut (1200000 milisekund), wyświetl w minutachs
+      if (upperLimit <= 20 * 60 * 1000) {
+        timeUnit = 'minut(y)';
+        timeValue = upperLimit / (60 * 1000); // Przelicz na minuty
+      }
+
+      if (!mission.livestream) {
+        const title = `Zbliżający się start - brak transmisji`;
+        const body = `Misja **${mission.name}** rozpocznie się za ${timeValue} ${timeUnit}, nie ma dodanej transmisji.`;
+        this.discordService.sendMessage(title, body);
+      }
+
+      const rocket: Rocket = await this.sanityService.fetch(
+        `*[_type == "rocket" && _id == "${mission.rocket._ref}"]`,
+      );
+
+      if (
+        (rocket[0].name === 'Falcon 9 Block 5' ||
+          rocket[0].name === 'Falcon Heavy') &&
+        !mission.boosters
+      ) {
+        const title = `Zbliżający się start - brak boostera`;
+        const body = `Misja **${mission.name}** z rakietą **${rocket[0].name}** rozpocznie się za ${timeValue} ${timeUnit}, a nie ma przypisanego boostera.`;
+        this.discordService.sendMessage(title, body);
+      }
     }
   }
 
