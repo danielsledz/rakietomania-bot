@@ -49,7 +49,7 @@ export class ExternalApiService {
           const data = response.data;
 
           allData = allData.concat(data.results);
-          nextUrl = null;
+          nextUrl = data.next;
           count = data.count;
           previous = data.previous;
         }
