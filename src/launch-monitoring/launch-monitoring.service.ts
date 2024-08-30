@@ -269,19 +269,23 @@ export class LaunchMonitoringService {
       const newWindowStartFormatted = formatDateToPolishTimezone(window_start);
       const newWindowEndFormatted = formatDateToPolishTimezone(window_end);
 
-      await this.updateAndNotify(
-        'changeWindowLaunches',
-        'okno czasowe startu',
-        name,
-        configName,
-        `${oldWindowStartFormatted} - ${oldWindowEndFormatted}`,
-        `${newWindowStartFormatted} - ${newWindowEndFormatted}`,
-        {
-          windowStart: window_start,
-          windowEnd: window_end,
-        },
-        _id,
-      );
+      // Sprawdź, czy identyfikator jest dodawany do cache
+      if (!this.caches.changeWindowLaunches.has(_id)) {
+        await this.updateAndNotify(
+          'changeWindowLaunches',
+          'okno czasowe startu',
+          name,
+          configName,
+          `${oldWindowStartFormatted} - ${oldWindowEndFormatted}`,
+          `${newWindowStartFormatted} - ${newWindowEndFormatted}`,
+          {
+            windowStart: window_start,
+            windowEnd: window_end,
+          },
+          _id,
+        );
+        this.caches.changeWindowLaunches.add(_id);
+      }
     }
 
     const externalAPIStatus = Statuses.find(
@@ -290,14 +294,18 @@ export class LaunchMonitoringService {
 
     if (externalAPIStatus && launch.status !== externalAPIStatus.myAPIStatus) {
       const previousStatus = launch.status;
-      await this.sanityService.updateSanityRecord(_id, {
-        status: externalAPIStatus.myAPIStatus,
-      });
-      this.discordService.sendMessage(
-        `Zmieniono status`,
-        `Pole: **status**\nMisja: **${name}**\nRakieta: **${configName}**\nWartość przed: **${previousStatus}**\nWartość po: **${externalAPIStatus.myAPIStatus}**\nID Misji: **${_id}**`,
-      );
-      this.caches.updatedStatusLaunches.add(_id);
+
+      // Sprawdź, czy identyfikator jest dodawany do cache
+      if (!this.caches.updatedStatusLaunches.has(_id)) {
+        await this.sanityService.updateSanityRecord(_id, {
+          status: externalAPIStatus.myAPIStatus,
+        });
+        this.discordService.sendMessage(
+          `Zmieniono status`,
+          `Pole: **status**\nMisja: **${name}**\nRakieta: **${configName}**\nWartość przed: **${previousStatus}**\nWartość po: **${externalAPIStatus.myAPIStatus}**\nID Misji: **${_id}**`,
+        );
+        this.caches.updatedStatusLaunches.add(_id);
+      }
     }
   }
 }
