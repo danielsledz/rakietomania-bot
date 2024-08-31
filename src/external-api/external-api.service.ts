@@ -34,6 +34,8 @@ export class ExternalApiService {
       const url = this.configService.get<string>('LAUNCH_API_URL');
       const token = this.configService.get<string>('API_TOKEN');
 
+      console.log(token);
+
       try {
         console.log(
           'Fetching first page from Space Launch API - ',
