@@ -97,7 +97,7 @@ export class ExternalApiService {
   async tryToFetchMissions(): Promise<LaunchCollection> {
     const now = new Date();
     const shouldFetchFirstPage =
-      now.getTime() - this.firstPageLastFetched.getTime() > 3 * 60 * 1000;
+      now.getTime() - this.firstPageLastFetched.getTime() > 30 * 1000; // Spójne z fetchMissions()
     const shouldFetchAllData =
       !this.launchApiDataCache ||
       now.getTime() - this.launchApiDataLastFetched.getTime() > 20 * 60 * 1000;
