@@ -30,34 +30,35 @@ export class ExternalApiService {
       this.isFetchingLaunchApiData = true;
       const now = new Date();
 
-      // Sprawdzamy, czy minęło 3 minuty od ostatniego pobrania pierwszej strony
       const shouldFetchFirstPage =
-        now.getTime() - this.firstPageLastFetched.getTime() > 3 * 60 * 1000;
-
-      // Sprawdzamy, czy minęło 20 minut od ostatniego pobrania pełnych danych
+        now.getTime() - this.firstPageLastFetched.getTime() > 30 * 1000; // Co 30 sekund
       const shouldFetchAllData =
         !this.launchApiDataCache ||
         now.getTime() - this.launchApiDataLastFetched.getTime() >
-          20 * 60 * 1000;
+          20 * 60 * 1000; // Co 20 minut
 
       if (shouldFetchFirstPage || shouldFetchAllData) {
         console.log('Fetching new data from Space Launch API');
         let allData: any[] = [];
         const url = this.configService.get<string>('LAUNCH_API_URL');
+        const token = this.configService.get<string>('API_TOKEN');
+
         let nextUrl: string | null = url;
         let count = 0;
         let previous: string | null = null;
         let isFirstPage = true;
-        console.log(nextUrl);
 
         while (nextUrl) {
-          // Pobieramy dane tylko, jeśli to pierwsza strona lub powinniśmy pobrać wszystkie dane
+          console.log(nextUrl);
+
           if (isFirstPage && !shouldFetchFirstPage) {
             break;
           }
 
-          const response = await axios.get(nextUrl).finally(() => {
-            console.log('Pobralem reuqest');
+          const response = await axios.get(nextUrl, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           });
 
           const data = response.data;
@@ -68,7 +69,7 @@ export class ExternalApiService {
           previous = data.previous;
 
           if (isFirstPage) {
-            this.firstPageLastFetched = now; // Aktualizacja czasu pobrania pierwszej strony
+            this.firstPageLastFetched = now;
             isFirstPage = false;
           }
         }
@@ -81,6 +82,7 @@ export class ExternalApiService {
         };
         this.launchApiDataLastFetched = now;
       }
+
       this.isFetchingLaunchApiData = false;
     } catch (error) {
       console.error('Error while fetching launch data from API', error);

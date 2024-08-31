@@ -178,7 +178,7 @@ export class CronServiceService {
     }
   }
 
-  @Cron('0 */20 * * * *') // Co 20 minut
+  @Cron(CronExpression.EVERY_30_SECONDS) // Co 30 sekund
   async fetchExternalData() {
     try {
       await this.externalApiService.tryToFetchMissions();
