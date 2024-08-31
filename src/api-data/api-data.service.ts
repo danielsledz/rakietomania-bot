@@ -13,6 +13,6 @@ export class ApiDataService {
     private readonly errorHandlingService: ErrorHandlingService,
   ) {
     sanityService.fetchMissions();
-    externalApiService.fetchMissions();
+    this.externalApiService.fetchAllData();
   }
 }

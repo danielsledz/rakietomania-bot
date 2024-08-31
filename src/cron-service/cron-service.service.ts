@@ -6,6 +6,8 @@ import { ExternalApiService } from 'src/external-api/external-api.service';
 import { LaunchMonitoringService } from 'src/launch-monitoring/launch-monitoring.service';
 import { SanityService } from 'src/sanity/sanity.service';
 import { Rocket } from 'src/types';
+import { Mutex } from 'async-mutex';
+const mutex = new Mutex();
 
 @Injectable()
 export class CronServiceService {
@@ -16,6 +18,8 @@ export class CronServiceService {
     private readonly errorHandlingService: ErrorHandlingService,
     private readonly externalApiService: ExternalApiService,
   ) {}
+  private isFetchingExternalData = false;
+  private isFetchingExternalDataAll = false;
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async deleteOldLaunches() {
@@ -178,13 +182,45 @@ export class CronServiceService {
     }
   }
 
-  @Cron(CronExpression.EVERY_30_SECONDS) // Co 30 sekund
   async fetchExternalData() {
-    try {
-      await this.externalApiService.tryToFetchMissions();
-    } catch (error) {
-      console.error('Error handling cron and checking status', error);
+    await mutex.runExclusive(async () => {
+      console.log('---------------------');
+      console.log('Fetching external data CROOON RUNNING');
+      console.log('---------------------');
+      if (this.isFetchingExternalData) {
+        console.log('fetchExternalData is already running, skipping...');
+        return;
+      }
+      this.isFetchingExternalData = true;
+      try {
+        await this.externalApiService.fetchFirstPage();
+      } catch (error) {
+        console.error('Error handling cron and checking status', error);
+      } finally {
+        this.isFetchingExternalData = false;
+      }
+    });
+  }
+
+  // Co 20 minut
+  @Cron('0 */20 * * * *')
+  async fetchAllData() {
+    if (this.isFetchingExternalDataAll) {
+      console.log('fetchExternalData is already running, skipping...');
+      return;
     }
+
+    this.isFetchingExternalDataAll = true;
+
+    await mutex.runExclusive(async () => {
+      try {
+        await this.externalApiService.fetchAllData();
+      } catch (error) {
+        console.error('Error handling cron and checking status', error);
+      } finally {
+        this.isFetchingExternalDataAll = false;
+      }
+    });
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)

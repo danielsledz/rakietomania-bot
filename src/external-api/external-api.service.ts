@@ -2,62 +2,104 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { LaunchCollection } from 'src/types/launchFromSpaceLaunchNow';
+import { Mutex } from 'async-mutex';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class ExternalApiService {
-  private isFetchingLaunchApiData = false;
-  public launchApiDataCache: LaunchCollection | null = null;
+  launchApiDataCache: LaunchCollection | null = null;
   private launchApiDataLastFetched = new Date(0);
-  private firstPageLastFetched = new Date(0); // Nowe pole do przechowywania czasu ostatniego pobrania pierwszej strony
+  private firstPageLastFetched = new Date(0);
+  private fetchMutex = new Mutex();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    console.log('ExternalApiService instantiated');
+  }
 
-  private fetchLock: Promise<void> | null = null;
-
-  async fetchMissions(): Promise<LaunchCollection> {
-    while (this.fetchLock) {
-      await this.fetchLock;
-    }
-
-    let resolveLock: () => void;
-    this.fetchLock = new Promise<void>((resolve) => {
-      resolveLock = resolve;
-    });
-
-    try {
-      if (this.isFetchingLaunchApiData) return this.launchApiDataCache;
-
-      this.isFetchingLaunchApiData = true;
+  @Cron(CronExpression.EVERY_30_SECONDS) // Co 30 sekund
+  public async fetchFirstPage(): Promise<LaunchCollection | null> {
+    return this.fetchMutex.runExclusive(async () => {
+      console.log('---------------------');
+      console.log('Fetching external data CROOON RUNNING');
+      console.log('---------------------');
       const now = new Date();
 
-      const shouldFetchFirstPage =
-        now.getTime() - this.firstPageLastFetched.getTime() > 30 * 1000; // Co 30 sekund
-      const shouldFetchAllData =
-        !this.launchApiDataCache ||
-        now.getTime() - this.launchApiDataLastFetched.getTime() >
-          20 * 60 * 1000; // Co 20 minut
+      if (now.getTime() - this.firstPageLastFetched.getTime() < 27 * 1000) {
+        console.log(
+          'Skipping fetchFirstPage because 30 seconds have not passed yet.',
+        );
+        return this.launchApiDataCache;
+      }
 
-      if (shouldFetchFirstPage || shouldFetchAllData) {
-        console.log('Fetching new data from Space Launch API');
-        let allData: any[] = [];
-        const url = this.configService.get<string>('LAUNCH_API_URL');
-        const token = this.configService.get<string>('API_TOKEN');
+      const url = this.configService.get<string>('LAUNCH_API_URL');
+      const token = this.configService.get<string>('API_TOKEN');
 
-        let nextUrl: string | null = url;
-        let count = 0;
-        let previous: string | null = null;
-        let isFirstPage = true;
+      try {
+        console.log(
+          'Fetching first page from Space Launch API - ',
+          now.toTimeString(),
+        );
+        console.log('URL:', url);
+        const response = await axios.get(url, {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        });
 
+        const data = response.data;
+
+        if (this.launchApiDataCache) {
+          this.launchApiDataCache.results = data.results;
+        } else {
+          this.launchApiDataCache = {
+            count: data.count,
+            next: data.next,
+            previous: data.previous,
+            results: data.results,
+          };
+        }
+
+        this.firstPageLastFetched = new Date(); // Update last fetched time for the first page
+      } catch (error) {
+        console.error(
+          'Error while fetching first page from Space Launch API',
+          error,
+        );
+      }
+
+      return this.launchApiDataCache;
+    });
+  }
+
+  // Co 20 minut
+  @Cron('0 */20 * * * *')
+  public async fetchAllData(): Promise<LaunchCollection | null> {
+    return this.fetchMutex.runExclusive(async () => {
+      const now = new Date();
+
+      if (
+        now.getTime() - this.launchApiDataLastFetched.getTime() <
+        20 * 60 * 1000
+      ) {
+        console.log(
+          'Skipping fetchAllData because 20 minutes have not passed yet.',
+        );
+        return this.launchApiDataCache;
+      }
+
+      const url = this.configService.get<string>('LAUNCH_API_URL');
+      const token = this.configService.get<string>('API_TOKEN');
+
+      let allData: any[] = [];
+      let nextUrl: string | null = url;
+
+      try {
+        console.log('Fetching all data from Space Launch API');
         while (nextUrl) {
-          console.log(nextUrl);
-
-          if (isFirstPage && !shouldFetchFirstPage) {
-            break;
-          }
-
+          console.log('URL:', nextUrl);
           const response = await axios.get(nextUrl, {
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Token ${token}`,
             },
           });
 
@@ -65,46 +107,23 @@ export class ExternalApiService {
 
           allData = allData.concat(data.results);
           nextUrl = data.next;
-          count = data.count;
-          previous = data.previous;
-
-          if (isFirstPage) {
-            this.firstPageLastFetched = now;
-            isFirstPage = false;
-          }
         }
 
         this.launchApiDataCache = {
-          count,
+          count: allData.length,
           next: null,
-          previous,
+          previous: null,
           results: allData,
         };
-        this.launchApiDataLastFetched = now;
+        this.launchApiDataLastFetched = new Date(); // Update last fetched time for all data
+      } catch (error) {
+        console.error(
+          'Error while fetching all data from Space Launch API',
+          error,
+        );
       }
 
-      this.isFetchingLaunchApiData = false;
-    } catch (error) {
-      console.error('Error while fetching launch data from API', error);
-    } finally {
-      resolveLock!();
-      this.fetchLock = null;
-    }
-
-    return this.launchApiDataCache;
-  }
-
-  async tryToFetchMissions(): Promise<LaunchCollection> {
-    const now = new Date();
-    const shouldFetchFirstPage =
-      now.getTime() - this.firstPageLastFetched.getTime() > 30 * 1000; // Spójne z fetchMissions()
-    const shouldFetchAllData =
-      !this.launchApiDataCache ||
-      now.getTime() - this.launchApiDataLastFetched.getTime() > 20 * 60 * 1000;
-
-    if (shouldFetchFirstPage || shouldFetchAllData) {
-      await this.fetchMissions();
-    }
-    return this.launchApiDataCache;
+      return this.launchApiDataCache;
+    });
   }
 }
