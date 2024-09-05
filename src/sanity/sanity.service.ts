@@ -48,7 +48,7 @@ export class SanityService {
     const now = new Date();
     if (
       !this.sanityDataCache ||
-      now.getTime() - this.sanityDataLastFetched.getTime() > 5 * 60 * 1000
+      now.getTime() - this.sanityDataLastFetched.getTime() > 3 * 60 * 1000
     ) {
       try {
         this.sanityDataCache = await this.fetch('*[_type == "mission"]');
