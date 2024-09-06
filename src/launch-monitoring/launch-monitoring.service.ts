@@ -184,7 +184,10 @@ export class LaunchMonitoringService {
     updateFields: object,
     _id: string,
   ) {
-    if (this.caches[cacheKey].has(_id)) {
+    // Tworzenie bardziej unikalnego cacheKey
+    const uniqueCacheKey = `${cacheKey}_${missionName}_${rocketName}_${fieldName}_${_id}`;
+
+    if (this.caches[uniqueCacheKey]?.has(_id)) {
       return;
     }
 
@@ -204,8 +207,13 @@ export class LaunchMonitoringService {
     // Wysłanie wiadomości na Discord
     await this.discordService.sendMessage(messageTitle, messageBody);
 
-    // Aktualizacja cache po udanej operacji
-    this.caches[cacheKey].add(_id);
+    // Jeśli Set dla unikalnego cacheKey nie istnieje, utwórz go
+    if (!this.caches[uniqueCacheKey]) {
+      this.caches[uniqueCacheKey] = new Set();
+    }
+
+    // Dodanie _id do cache
+    this.caches[uniqueCacheKey].add(_id);
   }
 
   async checkAndUpdateLaunch(launch: Mission, matchingLaunchFromAPI: Launch) {
