@@ -204,6 +204,7 @@ export class LaunchMonitoringService {
     // Aktualizacja rekordu w Sanity
     await this.sanityService.updateSanityRecord(_id, updateFields);
 
+    //
     // Wysłanie wiadomości na Discord
     await this.discordService.sendMessage(messageTitle, messageBody);
 
